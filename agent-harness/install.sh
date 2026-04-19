@@ -3,7 +3,7 @@
 set -euo pipefail
 
 PACKAGE_NAME="qiaoya"
-REPO_URL='git+https://github.com/xhyqaq/qiaoya-cli.git#subdirectory=qiaoya-community-cli/agent-harness'
+REPO_URL='git+https://github.com/xhyqaq/qiaoya-cli.git#subdirectory=agent-harness'
 
 usage() {
   cat <<'EOF'
