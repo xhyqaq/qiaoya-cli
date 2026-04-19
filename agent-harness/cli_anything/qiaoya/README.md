@@ -6,7 +6,7 @@
 
 ### 方式一：本地开发环境
 
-在 `qiaoya-community-cli/agent-harness` 下执行：
+在 `agent-harness` 下执行：
 
 ```bash
 pip install -e .
@@ -32,7 +32,7 @@ pipx ensurepath
 然后从 GitHub 安装：
 
 ```bash
-pipx install "git+https://github.com/xhyqaq/qiaoya-cli.git#subdirectory=qiaoya-community-cli/agent-harness"
+pipx install "git+https://github.com/xhyqaq/qiaoya-cli.git#subdirectory=agent-harness"
 ```
 
 安装完成后直接使用：
@@ -46,7 +46,7 @@ qiaoya post list
 或者直接使用仓库自带安装脚本：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xhyqaq/qiaoya-cli/main/qiaoya-community-cli/agent-harness/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/xhyqaq/qiaoya-cli/main/agent-harness/install.sh | bash
 ```
 
 升级：
