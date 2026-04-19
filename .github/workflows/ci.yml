@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  agent-harness:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pipx
+          python -m pip install -e ./agent-harness
+
+      - name: Run pytest
+        run: |
+          pytest agent-harness/cli_anything/qiaoya/tests/test_core.py \
+            agent-harness/cli_anything/qiaoya/tests/test_full_e2e.py -q
+
+      - name: Check install script syntax
+        run: bash -n agent-harness/install.sh
+
+      - name: Verify pipx install from local package
+        env:
+          PIPX_HOME: ${{ runner.temp }}/pipx-home-local
+          PIPX_BIN_DIR: ${{ runner.temp }}/pipx-bin-local
+        run: |
+          python -m pipx install ./agent-harness
+          "$PIPX_BIN_DIR/qiaoya" --help
+
+      - name: Verify install.sh against local package
+        env:
+          PIPX_HOME: ${{ runner.temp }}/pipx-home-script
+          PIPX_BIN_DIR: ${{ runner.temp }}/pipx-bin-script
+          QIAOYA_REPO_URL: ./agent-harness
+        run: |
+          bash ./agent-harness/install.sh
+          "$PIPX_BIN_DIR/qiaoya" --help

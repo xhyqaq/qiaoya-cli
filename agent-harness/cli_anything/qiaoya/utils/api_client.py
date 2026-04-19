@@ -202,6 +202,20 @@ class QiaoyaClient:
     def send_register_code(self, email: str) -> None:
         self.post("/api/auth/register/email-code", auth=False, json_data={"email": email})
 
+    def send_password_reset_code(self, email: str) -> None:
+        self.post("/api/auth/password/reset-code", auth=False, json_data={"email": email})
+
+    def reset_password(self, email: str, verification_code: str, new_password: str) -> None:
+        self.post(
+            "/api/auth/password/reset",
+            auth=False,
+            json_data={
+                "email": email,
+                "verificationCode": verification_code,
+                "newPassword": new_password,
+            },
+        )
+
     def logout(self) -> None:
         if self.token:
             try:
@@ -222,6 +236,24 @@ class QiaoyaClient:
 
     def update_profile(self, **kwargs) -> dict[str, Any]:
         return self.put("/api/user/profile", json_data=kwargs)
+
+    def change_password(self, old_password: str, new_password: str) -> dict[str, Any]:
+        data = self.put(
+            "/api/user/password",
+            json_data={"oldPassword": old_password, "newPassword": new_password},
+        )
+        return data if isinstance(data, dict) else {}
+
+    def toggle_email_notification(self) -> dict[str, Any]:
+        data = self.put("/api/user/email-notification")
+        return data if isinstance(data, dict) else {}
+
+    def get_menu_codes(self) -> list[str]:
+        data = self.get("/api/user/menu-codes")
+        return data if isinstance(data, list) else []
+
+    def heartbeat(self) -> Any:
+        return self.get("/api/user/heartbeat")
 
     # ──────────────────────────── Session ────────────────────────────
 
@@ -523,6 +555,56 @@ class QiaoyaClient:
         data = self.get("/api/app/categories/tree", params=params)
         return data if isinstance(data, list) else []
 
+    # ──────────────────────────── Public / Front Site ────────────────────────────
+
+    def get_about_page(self) -> dict[str, Any]:
+        data = self.get("/api/public/site/about", auth=False)
+        return data if isinstance(data, dict) else {}
+
+    def get_public_stats(self) -> dict[str, Any]:
+        data = self.get("/api/public/stats/users", auth=False)
+        return data if isinstance(data, dict) else {"totalCount": data or 0}
+
+    def list_public_courses(self, page: int = 1, size: int = 1000) -> dict[str, Any]:
+        data = self.post(
+            "/api/public/courses/queries",
+            auth=False,
+            json_data={"pageNum": page, "pageSize": size},
+        )
+        return data if isinstance(data, dict) else {"records": data or []}
+
+    def get_public_course(self, course_id: str) -> dict[str, Any]:
+        data = self.get(f"/api/public/courses/{course_id}", auth=False)
+        return data if isinstance(data, dict) else {}
+
+    def get_public_subscription_plans(self) -> list[dict[str, Any]]:
+        data = self.get("/api/public/subscription-plans", auth=False)
+        return data if isinstance(data, list) else []
+
+    def get_app_subscription_plans(self) -> list[dict[str, Any]]:
+        data = self.get("/api/app/subscription-plans", auth=False)
+        return data if isinstance(data, list) else []
+
+    def list_public_testimonials(self) -> list[dict[str, Any]]:
+        data = self.get("/api/public/testimonials", auth=False)
+        return data if isinstance(data, list) else []
+
+    def list_public_update_logs(self) -> list[dict[str, Any]]:
+        data = self.get("/api/app/update-logs", auth=False)
+        return data if isinstance(data, list) else []
+
+    def get_public_update_log(self, log_id: str) -> dict[str, Any]:
+        data = self.get(f"/api/app/update-logs/{log_id}", auth=False)
+        return data if isinstance(data, dict) else {}
+
+    def list_public_services(self) -> list[dict[str, Any]]:
+        data = self.get("/api/public/independent-services", auth=False)
+        return data if isinstance(data, list) else []
+
+    def get_public_service(self, service_code: str) -> dict[str, Any]:
+        data = self.get(f"/api/public/independent-services/{service_code.upper()}", auth=False)
+        return data if isinstance(data, dict) else {}
+
     # ──────────────────────────── Courses ────────────────────────────
 
     def list_courses(
@@ -595,6 +677,258 @@ class QiaoyaClient:
 
     def activate_cdk(self, cdk_code: str) -> Any:
         return self.post("/api/user/subscription/activate-cdk", json_data={"cdkCode": cdk_code})
+
+    # ──────────────────────────── AI News / AI Tool / Codex ────────────────────────────
+
+    def get_ai_news_today(self) -> dict[str, Any]:
+        data = self.get("/api/app/ai-news/today", auth=False)
+        return data if isinstance(data, dict) else {}
+
+    def list_ai_news_history(self, page: int = 1, size: int = 10) -> dict[str, Any]:
+        data = self.get(
+            "/api/app/ai-news/history",
+            auth=False,
+            params={"pageNum": page, "pageSize": size},
+        )
+        return data if isinstance(data, dict) else {"records": data or []}
+
+    def list_ai_news_daily(self, date: str, page: int = 1, size: int = 10) -> dict[str, Any]:
+        data = self.get(
+            "/api/app/ai-news/daily",
+            auth=False,
+            params={"date": date, "pageNum": page, "pageSize": size},
+        )
+        return data if isinstance(data, dict) else {"records": data or []}
+
+    def get_ai_news_detail(self, news_id: str) -> dict[str, Any]:
+        data = self.get(f"/api/app/ai-news/detail/{news_id}", auth=False)
+        return data if isinstance(data, dict) else {}
+
+    def get_ai_tool_summary(self) -> dict[str, Any]:
+        data = self.get("/api/app/ai-tool/summary", auth=False)
+        return data if isinstance(data, dict) else {}
+
+    def get_codex_info(self) -> dict[str, Any]:
+        data = self.get("/api/app/codex/info", auth=False)
+        return data if isinstance(data, dict) else {}
+
+    def get_codex_p_info(self) -> dict[str, Any]:
+        data = self.get("/api/app/codex-p/info", auth=False)
+        return data if isinstance(data, dict) else {}
+
+    def list_codex_p_infos(self) -> list[dict[str, Any]]:
+        data = self.get("/api/app/codex-p/infos", auth=False)
+        return data if isinstance(data, list) else []
+
+    # ──────────────────────────── Expressions / Testimonials ────────────────────────────
+
+    def list_expressions(self) -> list[dict[str, Any]]:
+        data = self.get("/api/expressions")
+        return data if isinstance(data, list) else []
+
+    def get_expression_alias_map(self) -> dict[str, str]:
+        data = self.get("/api/expressions/alias-map")
+        return data if isinstance(data, dict) else {}
+
+    def create_testimonial(self, content: str, rating: int, title: Optional[str] = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"content": content, "rating": rating}
+        if title:
+            payload["title"] = title
+        data = self.post("/api/testimonials", json_data=payload)
+        return data if isinstance(data, dict) else {}
+
+    def get_my_testimonial(self) -> dict[str, Any]:
+        data = self.get("/api/testimonials/my")
+        return data if isinstance(data, dict) else {}
+
+    def update_testimonial(self, testimonial_id: str, content: str, rating: int, title: Optional[str] = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"content": content, "rating": rating}
+        if title:
+            payload["title"] = title
+        data = self.put(f"/api/testimonials/{testimonial_id}", json_data=payload)
+        return data if isinstance(data, dict) else {}
+
+    # ──────────────────────────── Interview Questions ────────────────────────────
+
+    def list_interview_questions(self, page: int = 1, size: int = 10, mine: bool = False, **params) -> dict[str, Any]:
+        path = "/api/interview-questions/my" if mine else "/api/interview-questions"
+        query: dict[str, Any] = {"pageNum": page, "pageSize": size}
+        query.update({k: v for k, v in params.items() if v is not None})
+        data = self.get(path, params=query)
+        return data if isinstance(data, dict) else {"records": data or []}
+
+    def get_interview_question(self, question_id: str) -> dict[str, Any]:
+        data = self.get(f"/api/interview-questions/{question_id}")
+        return data if isinstance(data, dict) else {}
+
+    def create_interview_question(self, title: str, content: str, answer: Optional[str] = None, status: Optional[str] = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"title": title, "content": content}
+        if answer is not None:
+            payload["answer"] = answer
+        if status is not None:
+            payload["status"] = status
+        data = self.post("/api/interview-questions", json_data=payload)
+        return data if isinstance(data, dict) else {}
+
+    def update_interview_question(self, question_id: str, **payload) -> dict[str, Any]:
+        data = self.put(f"/api/interview-questions/{question_id}", json_data=payload)
+        return data if isinstance(data, dict) else {}
+
+    def batch_create_interview_questions(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        data = self.post("/api/interview-questions/batch", json_data={"questions": items})
+        return data if isinstance(data, list) else []
+
+    def change_interview_question_status(self, question_id: str, status: str) -> dict[str, Any]:
+        data = self.patch(f"/api/interview-questions/{question_id}/status", json_data={"status": status})
+        return data if isinstance(data, dict) else {}
+
+    def delete_interview_question(self, question_id: str) -> Any:
+        return self.delete(f"/api/interview-questions/{question_id}")
+
+    # ──────────────────────────── Unread / Resource ────────────────────────────
+
+    def get_unread_summary(self) -> dict[str, Any]:
+        data = self.get("/api/user/unread/summary")
+        return data if isinstance(data, dict) else {}
+
+    def visit_unread_channel(self, channel: str) -> Any:
+        return self.put("/api/user/unread/visit", params={"channel": channel})
+
+    def list_user_resources(self, page: int = 1, size: int = 10, resource_type: Optional[str] = None) -> dict[str, Any]:
+        params: dict[str, Any] = {"pageNum": page, "pageSize": size}
+        if resource_type:
+            params["resourceType"] = resource_type
+        data = self.get("/api/user/resource/", params=params)
+        return data if isinstance(data, dict) else {"records": data or []}
+
+    def get_resource_access_url(self, resource_id: str) -> str:
+        return f"{self.base_url}/api/public/resource/{resource_id}/access"
+
+    # ──────────────────────────── Chat ────────────────────────────
+
+    def list_chat_rooms(self, page: int = 1, size: int = 20, name_like: Optional[str] = None) -> dict[str, Any]:
+        params: dict[str, Any] = {"pageNum": page, "pageSize": size}
+        if name_like:
+            params["nameLike"] = name_like
+        data = self.get("/api/app/chat-rooms", params=params)
+        return data if isinstance(data, dict) else {"records": data or []}
+
+    def create_chat_room(self, name: str, description: Optional[str] = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"name": name}
+        if description:
+            payload["description"] = description
+        data = self.post("/api/app/chat-rooms", json_data=payload)
+        return data if isinstance(data, dict) else {}
+
+    def join_chat_room(self, room_id: str) -> Any:
+        return self.post(f"/api/app/chat-rooms/{room_id}/join")
+
+    def list_chat_room_members(self, room_id: str) -> list[dict[str, Any]]:
+        data = self.get(f"/api/app/chat-rooms/{room_id}/members")
+        return data if isinstance(data, list) else []
+
+    def get_chat_room_unread_count(self, room_id: str) -> int:
+        data = self.get(f"/api/app/chat-rooms/{room_id}/unread-count")
+        if isinstance(data, int):
+            return data
+        if isinstance(data, dict):
+            return int(data.get("count") or data.get("unreadCount") or 0)
+        return 0
+
+    def get_chat_room_unread_info(self, room_id: str) -> dict[str, Any]:
+        data = self.get(f"/api/app/chat-rooms/{room_id}/unread-info")
+        return data if isinstance(data, dict) else {}
+
+    def visit_chat_room(self, room_id: str, anchor_id: Optional[str] = None, anchor_time: Optional[str] = None) -> Any:
+        params: dict[str, Any] = {}
+        if anchor_id:
+            params["anchorId"] = anchor_id
+        if anchor_time:
+            params["anchorTime"] = anchor_time
+        return self.put(f"/api/app/chat-rooms/{room_id}/visit", params=params)
+
+    def leave_chat_room(self, room_id: str) -> Any:
+        return self.post(f"/api/app/chat-rooms/{room_id}/leave")
+
+    def delete_chat_room(self, room_id: str) -> Any:
+        return self.delete(f"/api/app/chat-rooms/{room_id}")
+
+    def list_chat_messages(self, room_id: str, page: int = 1, size: int = 20) -> dict[str, Any]:
+        data = self.get(
+            f"/api/app/chat-rooms/{room_id}/messages",
+            params={"pageNum": page, "pageSize": size},
+        )
+        return data if isinstance(data, dict) else {"records": data or []}
+
+    def send_chat_message(self, room_id: str, content: str, message_type: str = "TEXT") -> dict[str, Any]:
+        data = self.post(
+            f"/api/app/chat-rooms/{room_id}/messages",
+            json_data={"content": content, "messageType": message_type},
+        )
+        return data if isinstance(data, dict) else {}
+
+    # ──────────────────────────── OAuth ────────────────────────────
+
+    def get_github_authorize_url(self) -> dict[str, Any]:
+        data = self.get("/api/public/oauth/github/url", auth=False)
+        return data if isinstance(data, dict) else {}
+
+    def github_public_callback(self, code: str, state: str) -> dict[str, Any]:
+        data = self.get("/api/public/oauth/github/callback", auth=False, params={"code": code, "state": state})
+        return data if isinstance(data, dict) else {}
+
+    def get_github_bind_status(self) -> dict[str, Any]:
+        data = self.get("/api/user/oauth/github/status")
+        return data if isinstance(data, dict) else {}
+
+    def bind_github(self, code: str, state: str) -> dict[str, Any]:
+        data = self.post("/api/user/oauth/github/bind", json_data={"code": code, "state": state})
+        return data if isinstance(data, dict) else {}
+
+    def unbind_github(self) -> Any:
+        return self.post("/api/user/oauth/github/unbind")
+
+    def list_oauth2_authorizations(self, page: int = 1, size: int = 10) -> dict[str, Any]:
+        data = self.get("/api/user/oauth2/authorizations", params={"pageNum": page, "pageSize": size})
+        return data if isinstance(data, dict) else {"records": data or []}
+
+    def revoke_oauth2_authorization(self, client_id: str) -> Any:
+        return self.delete(f"/api/user/oauth2/authorizations/{client_id}")
+
+    def oauth2_authorize(
+        self,
+        client_id: str,
+        redirect_uri: str,
+        response_type: str,
+        scope: Optional[str] = None,
+        state: Optional[str] = None,
+        code_challenge: Optional[str] = None,
+        code_challenge_method: Optional[str] = None,
+        approved: bool = True,
+    ) -> Any:
+        payload: dict[str, Any] = {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": response_type,
+            "approved": approved,
+        }
+        if scope is not None:
+            payload["scope"] = scope
+        if state is not None:
+            payload["state"] = state
+        if code_challenge is not None:
+            payload["code_challenge"] = code_challenge
+        if code_challenge_method is not None:
+            payload["code_challenge_method"] = code_challenge_method
+        return self.post("/api/public/oauth2/authorize", auth=False, json_data=payload)
+
+    def oauth2_get_client_info(self, client_id: str) -> dict[str, Any]:
+        data = self.get(f"/api/public/oauth2/clients/{client_id}", auth=False)
+        return data if isinstance(data, dict) else {}
+
+    def oauth2_get_consent(self, client_id: str) -> dict[str, Any]:
+        data = self.get("/api/public/oauth2/consent", auth=False, params={"clientId": client_id})
+        return data if isinstance(data, dict) else {}
 
     # ──────────────────────────── Compatibility aliases ────────────────────────────
 

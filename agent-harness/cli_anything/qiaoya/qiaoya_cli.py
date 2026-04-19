@@ -9,7 +9,7 @@ import shlex
 import sys
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import click
 
@@ -336,6 +336,35 @@ def _print_learning_progress(progress: dict[str, Any]):
     ])
 
 
+def _value_from_path(item: Any, path: str):
+    current = item
+    for part in path.split("."):
+        if not isinstance(current, dict):
+            return None
+        current = current.get(part)
+    return current
+
+
+def _render_cell(item: dict[str, Any], getter: str | Callable[[dict[str, Any]], Any]):
+    if callable(getter):
+        return getter(item)
+    return _value_from_path(item, getter)
+
+
+def _print_simple_rows(items: list[dict[str, Any]], columns: list[tuple[str, str | Callable[[dict[str, Any]], Any]]]):
+    rows = []
+    for item in items:
+        rows.append([_FORMATTERS.text_or_dash(_render_cell(item, getter)) for _, getter in columns])
+    out.print_table([header for header, _ in columns], rows)
+
+
+def _print_simple_detail(data: dict[str, Any], fields: list[tuple[str, str | Callable[[dict[str, Any]], Any]]]):
+    out.print_kv([
+        (label, _FORMATTERS.text_or_dash(_render_cell(data, getter)))
+        for label, getter in fields
+    ])
+
+
 def _maybe_json(ctx: click.Context, data: Any, rows_printer=None, headers=None):
     jm = _json_mode(ctx)
     if jm:
@@ -469,6 +498,68 @@ def auth_status(ctx: click.Context):
         _fail(ctx, str(exc))
 
 
+@auth.command("send-register-code")
+@click.option("-e", "--email", required=True, prompt=True, help="邮箱地址")
+@click.pass_context
+def auth_send_register_code(ctx: click.Context, email: str):
+    client = _client(ctx)
+    try:
+        client.send_register_code(email)
+        if _json_mode(ctx):
+            out.print_json({"success": True, "email": email})
+        else:
+            out.success(f"注册验证码已发送到 {email}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@auth.command("send-reset-code")
+@click.option("-e", "--email", required=True, prompt=True, help="邮箱地址")
+@click.pass_context
+def auth_send_reset_code(ctx: click.Context, email: str):
+    client = _client(ctx)
+    try:
+        client.send_password_reset_code(email)
+        if _json_mode(ctx):
+            out.print_json({"success": True, "email": email})
+        else:
+            out.success(f"重置密码验证码已发送到 {email}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@auth.command("reset-password")
+@click.option("-e", "--email", required=True, prompt=True, help="邮箱地址")
+@click.option("--code", required=True, prompt=True, help="验证码")
+@click.option("--new-password", required=True, prompt=True, hide_input=True, help="新密码")
+@click.pass_context
+def auth_reset_password(ctx: click.Context, email: str, code: str, new_password: str):
+    client = _client(ctx)
+    try:
+        client.reset_password(email, code, new_password)
+        if _json_mode(ctx):
+            out.print_json({"success": True, "email": email})
+        else:
+            out.success("密码重置成功")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@auth.command("heartbeat")
+@click.pass_context
+def auth_heartbeat(ctx: click.Context):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.heartbeat()
+        if _json_mode(ctx):
+            out.print_json(data if data is not None else {"success": True})
+        else:
+            out.success("心跳成功")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
 @cli.group()
 def user():
     """用户信息"""
@@ -500,6 +591,78 @@ def user_get(ctx: click.Context, user_id: str):
             out.print_json(data)
         else:
             _print_user_card(data)
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@user.command("update")
+@click.option("--name", default=None, help="昵称")
+@click.option("--bio", default=None, help="简介")
+@click.option("--avatar", default=None, help="头像资源 ID 或 URL")
+@click.pass_context
+def user_update(ctx: click.Context, name: Optional[str], bio: Optional[str], avatar: Optional[str]):
+    _require_login(ctx)
+    client = _client(ctx)
+    payload = {k: v for k, v in {"name": name, "bio": bio, "avatar": avatar}.items() if v is not None}
+    if not payload:
+        _fail(ctx, "至少提供一个更新字段")
+    try:
+        data = client.update_profile(**payload)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.success("用户资料已更新")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@user.command("change-password")
+@click.option("--old-password", required=True, prompt=True, hide_input=True, help="旧密码")
+@click.option("--new-password", required=True, prompt=True, hide_input=True, help="新密码")
+@click.pass_context
+def user_change_password(ctx: click.Context, old_password: str, new_password: str):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.change_password(old_password, new_password)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.success("密码修改成功")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@user.command("toggle-email-notification")
+@click.pass_context
+def user_toggle_email_notification(ctx: click.Context):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.toggle_email_notification()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            enabled = data.get("emailNotificationEnabled")
+            if enabled is None:
+                out.success("邮箱通知设置已切换")
+            else:
+                out.success(f"邮箱通知已切换为：{'开启' if enabled else '关闭'}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@user.command("menu-codes")
+@click.pass_context
+def user_menu_codes(ctx: click.Context):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.get_menu_codes()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.print_table(["菜单码"], [[code] for code in data])
     except APIError as exc:
         _fail(ctx, str(exc))
 
@@ -1345,6 +1508,975 @@ def subscription_activate_cdk(ctx: click.Context, cdk_code: str):
             out.print_json(data if data is not None else {"success": True, "cdkCode": cdk_code})
         else:
             out.success("CDK 激活成功")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group()
+def public():
+    """公开前台能力"""
+
+
+@public.command("about")
+@click.pass_context
+def public_about(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.get_about_page()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("标题", "title"), ("内容", "content")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@public.command("stats")
+@click.pass_context
+def public_stats(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.get_public_stats()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            total = data.get("totalCount", data.get("count", 0))
+            print(f"用户总数：{total}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@public.command("course-list")
+@click.option("--page", default=1, show_default=True)
+@click.option("--size", default=10, show_default=True)
+@click.pass_context
+def public_course_list(ctx: click.Context, page: int, size: int):
+    client = _client(ctx)
+    try:
+        data = client.list_public_courses(page=page, size=size)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_page_info(data)
+            _print_course_rows((data or {}).get("records", []))
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@public.command("course-get")
+@click.argument("course_id")
+@click.pass_context
+def public_course_get(ctx: click.Context, course_id: str):
+    client = _client(ctx)
+    try:
+        data = client.get_public_course(course_id)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_course_detail(data)
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@public.command("plans")
+@click.pass_context
+def public_plans(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.get_public_subscription_plans()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_rows(data, [("ID", "id"), ("名称", "name"), ("级别", "level"), ("价格", "price")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@public.command("app-plans")
+@click.pass_context
+def public_app_plans(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.get_app_subscription_plans()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_rows(data, [("ID", "id"), ("名称", "name"), ("级别", "level"), ("价格", "price")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@public.command("testimonials")
+@click.pass_context
+def public_testimonials(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.list_public_testimonials()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_rows(data, [("ID", "id"), ("作者", "authorName"), ("评分", "rating"), ("内容", "content")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@public.command("update-logs")
+@click.pass_context
+def public_update_logs(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.list_public_update_logs()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_rows(data, [("ID", "id"), ("标题", "title"), ("时间", "createTime")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@public.command("update-log")
+@click.argument("log_id")
+@click.pass_context
+def public_update_log(ctx: click.Context, log_id: str):
+    client = _client(ctx)
+    try:
+        data = client.get_public_update_log(log_id)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("标题", "title"), ("摘要", "summary"), ("时间", "createTime")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@public.command("services")
+@click.pass_context
+def public_services(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.list_public_services()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_rows(data, [("编码", "serviceCode"), ("标题", "title"), ("价格", "price"), ("摘要", "summary")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@public.command("service")
+@click.argument("service_code")
+@click.pass_context
+def public_service(ctx: click.Context, service_code: str):
+    client = _client(ctx)
+    try:
+        data = client.get_public_service(service_code)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("编码", "serviceCode"), ("标题", "title"), ("价格", "price"), ("描述", "description")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group("ai-news")
+def ai_news():
+    """AI 日报"""
+
+
+@ai_news.command("today")
+@click.pass_context
+def ai_news_today(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.get_ai_news_today()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("日期", "date"), ("标题", lambda item: " / ".join(item.get("titles", []) or []))])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@ai_news.command("history")
+@click.option("--page", default=1, show_default=True)
+@click.option("--size", default=10, show_default=True)
+@click.pass_context
+def ai_news_history(ctx: click.Context, page: int, size: int):
+    client = _client(ctx)
+    try:
+        data = client.list_ai_news_history(page=page, size=size)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_page_info(data)
+            _print_simple_rows((data or {}).get("records", []), [("日期", "date"), ("标题", "title"), ("数量", "count")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@ai_news.command("daily")
+@click.option("--date", required=True, help="日期，例如 2026-04-20")
+@click.option("--page", default=1, show_default=True)
+@click.option("--size", default=10, show_default=True)
+@click.pass_context
+def ai_news_daily(ctx: click.Context, date: str, page: int, size: int):
+    client = _client(ctx)
+    try:
+        data = client.list_ai_news_daily(date=date, page=page, size=size)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_page_info(data)
+            _print_simple_rows((data or {}).get("records", []), [("ID", "id"), ("标题", "title"), ("日期", "date")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@ai_news.command("get")
+@click.argument("news_id")
+@click.pass_context
+def ai_news_get(ctx: click.Context, news_id: str):
+    client = _client(ctx)
+    try:
+        data = client.get_ai_news_detail(news_id)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("ID", "id"), ("标题", "title"), ("日期", "date"), ("内容", "content")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group("ai-tool")
+def ai_tool():
+    """AI 工具摘要"""
+
+
+@ai_tool.command("summary")
+@click.pass_context
+def ai_tool_summary(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.get_ai_tool_summary()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("API Key", "apiKey"), ("今日使用", "todayUsed"), ("今日预算", "todayBudget"), ("本周使用", "weekUsed"), ("本周预算", "weekBudget")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group()
+def codex():
+    """Codex 公共信息"""
+
+
+@codex.command("info")
+@click.pass_context
+def codex_info(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.get_codex_info()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("API Key", "apiKey"), ("今日使用", "todayUsed"), ("今日预算", "todayBudget"), ("本周使用", "weekUsed"), ("本周预算", "weekBudget")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group("codex-p")
+def codex_p():
+    """Codex 多实例公共信息"""
+
+
+@codex_p.command("info")
+@click.pass_context
+def codex_p_info(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.get_codex_p_info()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("API Key", "apiKey"), ("今日使用", "todayUsed"), ("今日预算", "todayBudget"), ("本周使用", "weekUsed"), ("本周预算", "weekBudget")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@codex_p.command("infos")
+@click.pass_context
+def codex_p_infos(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.list_codex_p_infos()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_rows(data, [("ID", "id"), ("名称", "name"), ("今日使用", "todayUsed"), ("本周使用", "weekUsed")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group("expression")
+def expression():
+    """表情资源"""
+
+
+@expression.command("list")
+@click.pass_context
+def expression_list(ctx: click.Context):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.list_expressions()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_rows(data, [("Code", "code"), ("名称", "name"), ("图片", "imageUrl")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@expression.command("alias-map")
+@click.pass_context
+def expression_alias_map(ctx: click.Context):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.get_expression_alias_map()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.print_table(["Alias", "URL"], [[k, v] for k, v in data.items()])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group()
+def testimonial():
+    """用户评价"""
+
+
+@testimonial.command("public-list")
+@click.pass_context
+def testimonial_public_list(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.list_public_testimonials()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_rows(data, [("ID", "id"), ("作者", "authorName"), ("评分", "rating"), ("内容", "content")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@testimonial.command("my")
+@click.pass_context
+def testimonial_my(ctx: click.Context):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.get_my_testimonial()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("ID", "id"), ("评分", "rating"), ("状态", "status"), ("内容", "content")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@testimonial.command("create")
+@click.option("--content", required=True, prompt=True, help="评价内容")
+@click.option("--rating", required=True, type=int, help="评分 1-5")
+@click.option("--title", default=None, help="标题")
+@click.pass_context
+def testimonial_create(ctx: click.Context, content: str, rating: int, title: Optional[str]):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.create_testimonial(content=content, rating=rating, title=title)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.success(f"评价已提交，ID：{data.get('id')}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@testimonial.command("update")
+@click.argument("testimonial_id")
+@click.option("--content", required=True, prompt=True, help="评价内容")
+@click.option("--rating", required=True, type=int, help="评分 1-5")
+@click.option("--title", default=None, help="标题")
+@click.pass_context
+def testimonial_update(ctx: click.Context, testimonial_id: str, content: str, rating: int, title: Optional[str]):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.update_testimonial(testimonial_id=testimonial_id, content=content, rating=rating, title=title)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.success(f"评价 {testimonial_id} 已更新")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group()
+def interview():
+    """面试题库"""
+
+
+@interview.command("list")
+@click.option("--page", default=1, show_default=True)
+@click.option("--size", default=10, show_default=True)
+@click.pass_context
+def interview_list(ctx: click.Context, page: int, size: int):
+    client = _client(ctx)
+    try:
+        data = client.list_interview_questions(page=page, size=size)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_page_info(data)
+            _print_simple_rows((data or {}).get("records", []), [("ID", "id"), ("标题", "title"), ("状态", "status"), ("时间", "createTime")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@interview.command("my")
+@click.option("--page", default=1, show_default=True)
+@click.option("--size", default=10, show_default=True)
+@click.pass_context
+def interview_my(ctx: click.Context, page: int, size: int):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.list_interview_questions(page=page, size=size, mine=True)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_page_info(data)
+            _print_simple_rows((data or {}).get("records", []), [("ID", "id"), ("标题", "title"), ("状态", "status"), ("时间", "createTime")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@interview.command("get")
+@click.argument("question_id")
+@click.pass_context
+def interview_get(ctx: click.Context, question_id: str):
+    client = _client(ctx)
+    try:
+        data = client.get_interview_question(question_id)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("ID", "id"), ("标题", "title"), ("状态", "status"), ("内容", "content"), ("答案", "answer")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@interview.command("create")
+@click.option("--title", required=True, prompt=True)
+@click.option("--content", required=True, prompt=True)
+@click.option("--answer", default=None)
+@click.option("--status", default=None)
+@click.pass_context
+def interview_create(ctx: click.Context, title: str, content: str, answer: Optional[str], status: Optional[str]):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.create_interview_question(title=title, content=content, answer=answer, status=status)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.success(f"题目已创建，ID：{data.get('id')}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@interview.command("update")
+@click.argument("question_id")
+@click.option("--title", default=None)
+@click.option("--content", default=None)
+@click.option("--answer", default=None)
+@click.pass_context
+def interview_update(ctx: click.Context, question_id: str, title: Optional[str], content: Optional[str], answer: Optional[str]):
+    _require_login(ctx)
+    client = _client(ctx)
+    payload = {k: v for k, v in {"title": title, "content": content, "answer": answer}.items() if v is not None}
+    if not payload:
+        _fail(ctx, "至少提供一个更新字段")
+    try:
+        data = client.update_interview_question(question_id, **payload)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.success(f"题目 {question_id} 已更新")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@interview.command("status")
+@click.argument("question_id")
+@click.option("--value", "status_value", required=True, help="状态值")
+@click.pass_context
+def interview_status(ctx: click.Context, question_id: str, status_value: str):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.change_interview_question_status(question_id, status_value)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.success(f"题目 {question_id} 状态已更新为 {status_value}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@interview.command("delete")
+@click.argument("question_id")
+@click.option("--yes", "-y", is_flag=True, help="跳过确认")
+@click.pass_context
+def interview_delete(ctx: click.Context, question_id: str, yes: bool):
+    _require_login(ctx)
+    client = _client(ctx)
+    if not yes and not _json_mode(ctx):
+        click.confirm(f"确认删除题目 {question_id}？", abort=True)
+    try:
+        client.delete_interview_question(question_id)
+        if _json_mode(ctx):
+            out.print_json({"success": True, "questionId": question_id})
+        else:
+            out.success(f"题目 {question_id} 已删除")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group()
+def unread():
+    """列表级未读"""
+
+
+@unread.command("summary")
+@click.pass_context
+def unread_summary(ctx: click.Context):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.get_unread_summary()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("帖子未读", "postsUnread"), ("题目未读", "questionsUnread"), ("章节未读", "chaptersUnread"), ("聊天未读", "chatsUnread")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@unread.command("visit")
+@click.argument("channel")
+@click.pass_context
+def unread_visit(ctx: click.Context, channel: str):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        client.visit_unread_channel(channel)
+        if _json_mode(ctx):
+            out.print_json({"success": True, "channel": channel})
+        else:
+            out.success(f"频道 {channel} 已 visit")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group()
+def resource():
+    """资源访问"""
+
+
+@resource.command("list")
+@click.option("--page", default=1, show_default=True)
+@click.option("--size", default=10, show_default=True)
+@click.option("--type", "resource_type", default=None, help="资源类型")
+@click.pass_context
+def resource_list(ctx: click.Context, page: int, size: int, resource_type: Optional[str]):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.list_user_resources(page=page, size=size, resource_type=resource_type)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            records = data.get("records") or data.get("items") or []
+            if isinstance(records, list):
+                _print_simple_rows(records, [("ID", "id"), ("名称", "filename"), ("类型", "resourceType"), ("时间", "createTime")])
+            else:
+                out.print_json(data)
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@resource.command("access-url")
+@click.argument("resource_id")
+@click.pass_context
+def resource_access_url(ctx: click.Context, resource_id: str):
+    client = _client(ctx)
+    url = client.get_resource_access_url(resource_id)
+    if _json_mode(ctx):
+        out.print_json({"resourceId": resource_id, "url": url})
+    else:
+        print(url)
+
+
+@cli.group()
+def chat():
+    """聊天室"""
+
+
+@chat.command("rooms")
+@click.option("--page", default=1, show_default=True)
+@click.option("--size", default=20, show_default=True)
+@click.option("--name-like", default=None, help="名称过滤")
+@click.pass_context
+def chat_rooms(ctx: click.Context, page: int, size: int, name_like: Optional[str]):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.list_chat_rooms(page=page, size=size, name_like=name_like)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_page_info(data)
+            _print_simple_rows((data or {}).get("records", []), [("ID", "id"), ("名称", "name"), ("描述", "description")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@chat.command("create")
+@click.option("--name", required=True, prompt=True)
+@click.option("--description", default=None)
+@click.pass_context
+def chat_create(ctx: click.Context, name: str, description: Optional[str]):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.create_chat_room(name=name, description=description)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.success(f"聊天室已创建，ID：{data.get('id')}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@chat.command("join")
+@click.argument("room_id")
+@click.pass_context
+def chat_join(ctx: click.Context, room_id: str):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        client.join_chat_room(room_id)
+        if _json_mode(ctx):
+            out.print_json({"success": True, "roomId": room_id})
+        else:
+            out.success(f"已加入聊天室 {room_id}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@chat.command("members")
+@click.argument("room_id")
+@click.pass_context
+def chat_members(ctx: click.Context, room_id: str):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.list_chat_room_members(room_id)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_rows(data, [("ID", "id"), ("名称", lambda item: item.get("name") or item.get("username")), ("在线", "online")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@chat.command("unread")
+@click.argument("room_id")
+@click.pass_context
+def chat_unread(ctx: click.Context, room_id: str):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.get_chat_room_unread_info(room_id)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("未读数", "count"), ("首条未读 ID", "firstUnreadId"), ("首条未读时间", "firstUnreadOccurredAt")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@chat.command("visit")
+@click.argument("room_id")
+@click.option("--anchor-id", default=None)
+@click.option("--anchor-time", default=None)
+@click.pass_context
+def chat_visit(ctx: click.Context, room_id: str, anchor_id: Optional[str], anchor_time: Optional[str]):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        client.visit_chat_room(room_id, anchor_id=anchor_id, anchor_time=anchor_time)
+        if _json_mode(ctx):
+            out.print_json({"success": True, "roomId": room_id})
+        else:
+            out.success(f"聊天室 {room_id} 已 visit")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@chat.command("leave")
+@click.argument("room_id")
+@click.pass_context
+def chat_leave(ctx: click.Context, room_id: str):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        client.leave_chat_room(room_id)
+        if _json_mode(ctx):
+            out.print_json({"success": True, "roomId": room_id})
+        else:
+            out.success(f"已退出聊天室 {room_id}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@chat.command("delete")
+@click.argument("room_id")
+@click.option("--yes", "-y", is_flag=True, help="跳过确认")
+@click.pass_context
+def chat_delete(ctx: click.Context, room_id: str, yes: bool):
+    _require_login(ctx)
+    client = _client(ctx)
+    if not yes and not _json_mode(ctx):
+        click.confirm(f"确认删除聊天室 {room_id}？", abort=True)
+    try:
+        client.delete_chat_room(room_id)
+        if _json_mode(ctx):
+            out.print_json({"success": True, "roomId": room_id})
+        else:
+            out.success(f"聊天室 {room_id} 已删除")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@chat.command("messages")
+@click.argument("room_id")
+@click.option("--page", default=1, show_default=True)
+@click.option("--size", default=20, show_default=True)
+@click.pass_context
+def chat_messages(ctx: click.Context, room_id: str, page: int, size: int):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.list_chat_messages(room_id, page=page, size=size)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_page_info(data)
+            _print_simple_rows((data or {}).get("records", []), [("ID", "id"), ("内容", "content"), ("时间", "createTime")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@chat.command("send")
+@click.argument("room_id")
+@click.option("--content", required=True, prompt=True)
+@click.option("--type", "message_type", default="TEXT", show_default=True)
+@click.pass_context
+def chat_send(ctx: click.Context, room_id: str, content: str, message_type: str):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.send_chat_message(room_id, content=content, message_type=message_type)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.success(f"消息已发送，ID：{data.get('id')}")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@cli.group()
+def oauth():
+    """OAuth / OAuth2"""
+
+
+@oauth.command("github-url")
+@click.pass_context
+def oauth_github_url(ctx: click.Context):
+    client = _client(ctx)
+    try:
+        data = client.get_github_authorize_url()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            print(data.get("url", ""))
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@oauth.command("github-status")
+@click.pass_context
+def oauth_github_status(ctx: click.Context):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.get_github_bind_status()
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("已绑定", lambda item: _FORMATTERS.yes_no(item.get("bound"))), ("提供方", "provider")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@oauth.command("github-bind")
+@click.option("--code", required=True)
+@click.option("--state", required=True)
+@click.pass_context
+def oauth_github_bind(ctx: click.Context, code: str, state: str):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.bind_github(code, state)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            out.success("GitHub 绑定成功")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@oauth.command("github-unbind")
+@click.pass_context
+def oauth_github_unbind(ctx: click.Context):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        client.unbind_github()
+        if _json_mode(ctx):
+            out.print_json({"success": True})
+        else:
+            out.success("GitHub 已解绑")
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@oauth.command("client")
+@click.argument("client_id")
+@click.pass_context
+def oauth_client(ctx: click.Context, client_id: str):
+    client = _client(ctx)
+    try:
+        data = client.oauth2_get_client_info(client_id)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("Client ID", lambda item: item.get("clientId") or item.get("client_id")), ("名称", lambda item: item.get("clientName") or item.get("client_name")), ("创建时间", lambda item: item.get("createTime") or item.get("create_time"))])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@oauth.command("consent")
+@click.argument("client_id")
+@click.pass_context
+def oauth_consent(ctx: click.Context, client_id: str):
+    client = _client(ctx)
+    try:
+        data = client.oauth2_get_consent(client_id)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_simple_detail(data, [("已授权", lambda item: _FORMATTERS.yes_no(item.get("consented"))), ("Scopes", lambda item: " ".join(item.get("scopes", []) or []))])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@oauth.command("authorize")
+@click.option("--client-id", required=True)
+@click.option("--redirect-uri", required=True)
+@click.option("--response-type", default="code", show_default=True)
+@click.option("--scope", default=None)
+@click.option("--state", default=None)
+@click.option("--code-challenge", default=None)
+@click.option("--code-challenge-method", default=None)
+@click.option("--approved/--denied", default=True, show_default=True)
+@click.pass_context
+def oauth_authorize(
+    ctx: click.Context,
+    client_id: str,
+    redirect_uri: str,
+    response_type: str,
+    scope: Optional[str],
+    state: Optional[str],
+    code_challenge: Optional[str],
+    code_challenge_method: Optional[str],
+    approved: bool,
+):
+    client = _client(ctx)
+    try:
+        data = client.oauth2_authorize(
+            client_id=client_id,
+            redirect_uri=redirect_uri,
+            response_type=response_type,
+            scope=scope,
+            state=state,
+            code_challenge=code_challenge,
+            code_challenge_method=code_challenge_method,
+            approved=approved,
+        )
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            print(data)
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@oauth.command("authorizations")
+@click.option("--page", default=1, show_default=True)
+@click.option("--size", default=10, show_default=True)
+@click.pass_context
+def oauth_authorizations(ctx: click.Context, page: int, size: int):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        data = client.list_oauth2_authorizations(page=page, size=size)
+        if _json_mode(ctx):
+            out.print_json(data)
+        else:
+            _print_page_info(data)
+            _print_simple_rows((data or {}).get("records", []), [("Client ID", "clientId"), ("名称", "clientName"), ("时间", "createTime")])
+    except APIError as exc:
+        _fail(ctx, str(exc))
+
+
+@oauth.command("revoke")
+@click.argument("client_id")
+@click.pass_context
+def oauth_revoke(ctx: click.Context, client_id: str):
+    _require_login(ctx)
+    client = _client(ctx)
+    try:
+        client.revoke_oauth2_authorization(client_id)
+        if _json_mode(ctx):
+            out.print_json({"success": True, "clientId": client_id})
+        else:
+            out.success(f"已撤销应用 {client_id} 的授权")
     except APIError as exc:
         _fail(ctx, str(exc))
 

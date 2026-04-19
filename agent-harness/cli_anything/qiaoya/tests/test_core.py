@@ -207,6 +207,129 @@ def test_activate_cdk_uses_expected_payload(tmp_path):
     assert captured["json"] == {"cdkCode": "CDK-123"}
 
 
+def test_public_courses_list_uses_public_endpoint_without_auth(tmp_path):
+    client = _make_client(tmp_path)
+    captured = {}
+
+    def fake_request(method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["json"] = kwargs.get("json")
+        captured["headers"] = kwargs.get("headers", {})
+        return DummyResponse(body={"code": 200, "data": {"records": []}})
+
+    client.session.request = fake_request
+
+    client.list_public_courses(page=2, size=5)
+
+    assert captured["method"] == "POST"
+    assert captured["url"] == "https://code.xhyovo.cn/api/public/courses/queries"
+    assert captured["json"] == {"pageNum": 2, "pageSize": 5}
+    assert "Authorization" not in captured["headers"]
+
+
+def test_send_chat_message_uses_room_message_endpoint(tmp_path):
+    client = _make_client(tmp_path)
+    captured = {}
+
+    def fake_request(method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["json"] = kwargs.get("json")
+        return DummyResponse(body={"code": 200, "data": {"id": "msg-1"}})
+
+    client.session.request = fake_request
+
+    client.send_chat_message("room-1", "你好", message_type="TEXT")
+
+    assert captured["method"] == "POST"
+    assert captured["url"] == "https://code.xhyovo.cn/api/app/chat-rooms/room-1/messages"
+    assert captured["json"] == {"content": "你好", "messageType": "TEXT"}
+
+
+def test_unread_visit_uses_expected_channel_param(tmp_path):
+    client = _make_client(tmp_path)
+    captured = {}
+
+    def fake_request(method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["params"] = kwargs.get("params")
+        return DummyResponse(body={"code": 200, "data": None})
+
+    client.session.request = fake_request
+
+    client.visit_unread_channel("POSTS")
+
+    assert captured["method"] == "PUT"
+    assert captured["url"] == "https://code.xhyovo.cn/api/user/unread/visit"
+    assert captured["params"] == {"channel": "POSTS"}
+
+
+def test_resource_access_url_uses_public_redirect_endpoint(tmp_path):
+    client = _make_client(tmp_path)
+
+    assert client.get_resource_access_url("res-1") == "https://code.xhyovo.cn/api/public/resource/res-1/access"
+
+
+def test_oauth2_authorize_maps_payload_to_snake_case(tmp_path):
+    client = _make_client(tmp_path)
+    captured = {}
+
+    def fake_request(method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["json"] = kwargs.get("json")
+        captured["headers"] = kwargs.get("headers", {})
+        return DummyResponse(body={"code": 200, "data": "auth-code-1"})
+
+    client.session.request = fake_request
+
+    client.oauth2_authorize(
+        client_id="cli-app",
+        redirect_uri="https://example.com/callback",
+        response_type="code",
+        scope="profile",
+        state="state-1",
+        code_challenge="challenge",
+        code_challenge_method="S256",
+        approved=True,
+    )
+
+    assert captured["method"] == "POST"
+    assert captured["url"] == "https://code.xhyovo.cn/api/public/oauth2/authorize"
+    assert captured["json"] == {
+        "client_id": "cli-app",
+        "redirect_uri": "https://example.com/callback",
+        "response_type": "code",
+        "scope": "profile",
+        "state": "state-1",
+        "code_challenge": "challenge",
+        "code_challenge_method": "S256",
+        "approved": True,
+    }
+    assert "Authorization" not in captured["headers"]
+
+
+def test_change_password_uses_expected_payload(tmp_path):
+    client = _make_client(tmp_path)
+    captured = {}
+
+    def fake_request(method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["json"] = kwargs.get("json")
+        return DummyResponse(body={"code": 200, "data": {"id": "user-1"}})
+
+    client.session.request = fake_request
+
+    client.change_password("old-secret", "new-secret")
+
+    assert captured["method"] == "PUT"
+    assert captured["url"] == "https://code.xhyovo.cn/api/user/password"
+    assert captured["json"] == {"oldPassword": "old-secret", "newPassword": "new-secret"}
+
+
 def test_api_error_exposes_message_code_and_status():
     err = APIError("boom", code=123, status_code=500)
     assert str(err) == "boom"

@@ -2,8 +2,9 @@
 
 set -euo pipefail
 
-PACKAGE_NAME="qiaoya"
-REPO_URL='git+https://github.com/xhyqaq/qiaoya-cli.git#subdirectory=agent-harness'
+PACKAGE_NAME="cli-anything-qiaoya"
+DEFAULT_REPO_URL='git+https://github.com/xhyqaq/qiaoya-cli.git#subdirectory=agent-harness'
+REPO_URL="${QIAOYA_REPO_URL:-$DEFAULT_REPO_URL}"
 
 usage() {
   cat <<'EOF'
@@ -14,6 +15,8 @@ Usage:
   ./install.sh --help     Show this help
 
 This script installs the qiaoya CLI globally via pipx.
+Environment:
+  QIAOYA_REPO_URL       Override install target for CI/local validation
 EOF
 }
 

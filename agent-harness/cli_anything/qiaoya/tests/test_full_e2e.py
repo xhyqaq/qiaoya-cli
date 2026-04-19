@@ -204,6 +204,107 @@ class FakeClient:
     def get_user(self, user_id):
         return self.get(f"/api/user/{user_id}")
 
+    def list_public_courses(self, page=1, size=10):
+        return self.post("/api/public/courses/queries", auth=False, json_data={"pageNum": page, "pageSize": size})
+
+    def get_public_course(self, course_id):
+        return self.get(f"/api/public/courses/{course_id}", auth=False)
+
+    def get_public_subscription_plans(self):
+        return self.get("/api/public/subscription-plans", auth=False)
+
+    def get_public_stats(self):
+        return self.get("/api/public/stats/users", auth=False)
+
+    def get_about_page(self):
+        return self.get("/api/public/site/about", auth=False)
+
+    def list_public_testimonials(self):
+        return self.get("/api/public/testimonials", auth=False)
+
+    def list_public_update_logs(self):
+        return self.get("/api/app/update-logs", auth=False)
+
+    def get_public_update_log(self, log_id):
+        return self.get(f"/api/app/update-logs/{log_id}", auth=False)
+
+    def get_ai_news_today(self):
+        return self.get("/api/app/ai-news/today", auth=False)
+
+    def list_ai_news_history(self, page=1, size=10):
+        return self.get("/api/app/ai-news/history", auth=False, params={"pageNum": page, "pageSize": size})
+
+    def list_ai_news_daily(self, date, page=1, size=10):
+        return self.get("/api/app/ai-news/daily", auth=False, params={"date": date, "pageNum": page, "pageSize": size})
+
+    def get_ai_news_detail(self, news_id):
+        return self.get(f"/api/app/ai-news/detail/{news_id}", auth=False)
+
+    def get_unread_summary(self):
+        return self.get("/api/user/unread/summary")
+
+    def visit_unread_channel(self, channel):
+        return self.put("/api/user/unread/visit", params={"channel": channel})
+
+    def list_chat_rooms(self, page=1, size=20, name_like=None):
+        params = {"pageNum": page, "pageSize": size}
+        if name_like:
+            params["nameLike"] = name_like
+        return self.get("/api/app/chat-rooms", params=params)
+
+    def join_chat_room(self, room_id):
+        return self.post(f"/api/app/chat-rooms/{room_id}/join")
+
+    def list_chat_room_members(self, room_id):
+        return self.get(f"/api/app/chat-rooms/{room_id}/members")
+
+    def get_chat_room_unread_info(self, room_id):
+        return self.get(f"/api/app/chat-rooms/{room_id}/unread-info")
+
+    def visit_chat_room(self, room_id, anchor_id=None, anchor_time=None):
+        params = {}
+        if anchor_id:
+            params["anchorId"] = anchor_id
+        if anchor_time:
+            params["anchorTime"] = anchor_time
+        return self.put(f"/api/app/chat-rooms/{room_id}/visit", params=params)
+
+    def list_chat_messages(self, room_id, page=1, size=20):
+        return self.get(f"/api/app/chat-rooms/{room_id}/messages", params={"pageNum": page, "pageSize": size})
+
+    def send_chat_message(self, room_id, content, message_type="TEXT"):
+        return self.post(f"/api/app/chat-rooms/{room_id}/messages", json_data={"content": content, "messageType": message_type})
+
+    def get_github_authorize_url(self):
+        return self.get("/api/public/oauth/github/url", auth=False)
+
+    def get_github_bind_status(self):
+        return self.get("/api/user/oauth/github/status")
+
+    def list_oauth2_authorizations(self, page=1, size=10):
+        return self.get("/api/user/oauth2/authorizations", params={"pageNum": page, "pageSize": size})
+
+    def revoke_oauth2_authorization(self, client_id):
+        return self.delete(f"/api/user/oauth2/authorizations/{client_id}")
+
+    def oauth2_get_client_info(self, client_id):
+        return self.get(f"/api/public/oauth2/clients/{client_id}", auth=False)
+
+    def oauth2_get_consent(self, client_id):
+        return self.get("/api/public/oauth2/consent", auth=False, params={"clientId": client_id})
+
+    def change_password(self, old_password, new_password):
+        return self.put("/api/user/password", json_data={"oldPassword": old_password, "newPassword": new_password})
+
+    def toggle_email_notification(self):
+        return self.put("/api/user/email-notification")
+
+    def get_menu_codes(self):
+        return self.get("/api/user/menu-codes")
+
+    def heartbeat(self):
+        return self.get("/api/user/heartbeat")
+
 
 @pytest.fixture
 def cli_env(monkeypatch, tmp_path):
@@ -246,6 +347,10 @@ def test_help_and_repl_quit(cli_env, monkeypatch):
     assert "post" in help_result.output
     assert "course" in help_result.output
     assert "learning" in help_result.output
+    assert "public" in help_result.output
+    assert "ai-news" in help_result.output
+    assert "chat" in help_result.output
+    assert "oauth" in help_result.output
 
     repl_result = _invoke([])
     assert repl_result.exit_code == 0
@@ -407,6 +512,142 @@ def test_learning_social_and_course_commands(cli_env):
     activate = _invoke(["subscription", "activate-cdk", "CDK-123"])
     assert activate.exit_code == 0
     assert any(call["path"] == "/api/user/subscription/activate-cdk" for call in FakeClient.instances[-1].calls)
+
+
+def test_public_ai_news_and_oauth_commands(cli_env):
+    FakeClient.responses = {
+        ("GET", "/api/public/site/about"): {"title": "关于敲鸭", "content": "站点介绍"},
+        ("GET", "/api/public/stats/users"): {"totalCount": 128},
+        ("POST", "/api/public/courses/queries"): {
+            "records": [{"id": "course-public-1", "title": "公开课", "teacherName": "alice"}],
+            "total": 1,
+            "current": 1,
+            "pages": 1,
+        },
+        ("GET", "/api/public/subscription-plans"): [{"id": "plan-1", "name": "会员月卡"}],
+        ("GET", "/api/public/testimonials"): [{"id": "test-1", "content": "很值", "authorName": "alice"}],
+        ("GET", "/api/app/update-logs"): [{"id": "log-1", "title": "版本更新"}],
+        ("GET", "/api/app/ai-news/today"): {"date": "2026-04-20", "titles": ["GPT-5.5"]},
+        ("GET", "/api/app/ai-news/history"): {"records": [{"date": "2026-04-19", "title": "历史日报"}], "total": 1, "current": 1, "pages": 1},
+        ("GET", "/api/public/oauth/github/url"): {"url": "https://github.com/login/oauth/authorize?client_id=1"},
+        ("GET", "/api/public/oauth2/clients/client-1"): {"clientId": "client-1", "clientName": "示例应用"},
+        ("GET", "/api/public/oauth2/consent"): {"consented": True, "scopes": ["profile"]},
+    }
+
+    about = _invoke(["public", "about"])
+    assert about.exit_code == 0
+    assert "关于敲鸭" in about.output
+
+    stats = _invoke(["public", "stats"])
+    assert stats.exit_code == 0
+    assert "128" in stats.output
+
+    public_courses = _invoke(["public", "course-list"])
+    assert public_courses.exit_code == 0
+    assert "公开课" in public_courses.output
+
+    plans = _invoke(["--json", "public", "plans"])
+    assert plans.exit_code == 0
+    assert json.loads(plans.output)[0]["id"] == "plan-1"
+
+    ai_today = _invoke(["ai-news", "today"])
+    assert ai_today.exit_code == 0
+    assert "GPT-5.5" in ai_today.output
+
+    ai_history = _invoke(["ai-news", "history"])
+    assert ai_history.exit_code == 0
+    assert "历史日报" in ai_history.output
+
+    github_url = _invoke(["oauth", "github-url"])
+    assert github_url.exit_code == 0
+    assert "github.com/login/oauth/authorize" in github_url.output
+
+    oauth_client = _invoke(["oauth", "client", "client-1"])
+    assert oauth_client.exit_code == 0
+    assert "示例应用" in oauth_client.output
+
+    oauth_consent = _invoke(["oauth", "consent", "client-1"])
+    assert oauth_consent.exit_code == 0
+    assert "profile" in oauth_consent.output
+
+
+def test_unread_chat_and_user_setting_commands(cli_env):
+    login_result = _invoke(["auth", "login", "-e", "tester@example.com", "-p", "secret"])
+    assert login_result.exit_code == 0
+
+    FakeClient.responses = {
+        ("GET", "/api/user/unread/summary"): {"postsUnread": 2, "questionsUnread": 1, "chaptersUnread": 3, "chatsUnread": 4},
+        ("PUT", "/api/user/unread/visit"): {},
+        ("GET", "/api/app/chat-rooms"): {"records": [{"id": "room-1", "name": "敲鸭群"}], "total": 1, "current": 1, "pages": 1},
+        ("POST", "/api/app/chat-rooms/room-1/join"): {},
+        ("GET", "/api/app/chat-rooms/room-1/members"): [{"id": "u-1", "name": "alice"}],
+        ("GET", "/api/app/chat-rooms/room-1/unread-info"): {"count": 5, "firstUnreadId": "msg-1"},
+        ("PUT", "/api/app/chat-rooms/room-1/visit"): {},
+        ("GET", "/api/app/chat-rooms/room-1/messages"): {"records": [{"id": "msg-1", "content": "hello"}], "total": 1, "current": 1, "pages": 1},
+        ("POST", "/api/app/chat-rooms/room-1/messages"): {"id": "msg-2", "content": "你好"},
+        ("GET", "/api/user/oauth/github/status"): {"bound": True, "provider": "github"},
+        ("GET", "/api/user/oauth2/authorizations"): {"records": [{"clientId": "client-1", "clientName": "示例应用"}], "total": 1, "current": 1, "pages": 1},
+        ("DELETE", "/api/user/oauth2/authorizations/client-1"): {},
+        ("PUT", "/api/user/password"): {"id": "u-1"},
+        ("PUT", "/api/user/email-notification"): {"id": "u-1", "emailNotificationEnabled": True},
+        ("GET", "/api/user/menu-codes"): ["POST_READ", "COURSE_READ"],
+        ("GET", "/api/user/heartbeat"): {},
+    }
+
+    unread_summary = _invoke(["unread", "summary"])
+    assert unread_summary.exit_code == 0
+    assert "4" in unread_summary.output
+
+    unread_visit = _invoke(["unread", "visit", "POSTS"])
+    assert unread_visit.exit_code == 0
+    assert any(call["path"] == "/api/user/unread/visit" for call in FakeClient.instances[-1].calls)
+
+    chat_rooms = _invoke(["chat", "rooms"])
+    assert chat_rooms.exit_code == 0
+    assert "敲鸭群" in chat_rooms.output
+
+    chat_join = _invoke(["chat", "join", "room-1"])
+    assert chat_join.exit_code == 0
+
+    chat_members = _invoke(["chat", "members", "room-1"])
+    assert chat_members.exit_code == 0
+    assert "alice" in chat_members.output
+
+    chat_messages = _invoke(["chat", "messages", "room-1"])
+    assert chat_messages.exit_code == 0
+    assert "hello" in chat_messages.output
+
+    chat_send = _invoke(["chat", "send", "room-1", "--content", "你好"])
+    assert chat_send.exit_code == 0
+    assert any(call["path"] == "/api/app/chat-rooms/room-1/messages" and call["method"] == "POST" for call in FakeClient.instances[-1].calls)
+
+    github_status = _invoke(["oauth", "github-status"])
+    assert github_status.exit_code == 0
+    assert "True" in github_status.output or "是" in github_status.output
+
+    authorizations = _invoke(["oauth", "authorizations"])
+    assert authorizations.exit_code == 0
+    assert "示例应用" in authorizations.output
+
+    revoke = _invoke(["oauth", "revoke", "client-1"])
+    assert revoke.exit_code == 0
+    assert any(call["path"] == "/api/user/oauth2/authorizations/client-1" for call in FakeClient.instances[-1].calls)
+
+    change_password = _invoke(["user", "change-password", "--old-password", "old", "--new-password", "new"])
+    assert change_password.exit_code == 0
+    assert any(call["path"] == "/api/user/password" for call in FakeClient.instances[-1].calls)
+
+    toggle_notification = _invoke(["user", "toggle-email-notification"])
+    assert toggle_notification.exit_code == 0
+    assert any(call["path"] == "/api/user/email-notification" for call in FakeClient.instances[-1].calls)
+
+    menu_codes = _invoke(["user", "menu-codes"])
+    assert menu_codes.exit_code == 0
+    assert "POST_READ" in menu_codes.output
+
+    heartbeat = _invoke(["auth", "heartbeat"])
+    assert heartbeat.exit_code == 0
+    assert any(call["path"] == "/api/user/heartbeat" for call in FakeClient.instances[-1].calls)
 
 
 @pytest.mark.skipif(__import__("os").environ.get("QIAOYA_LIVE_SMOKE") != "1", reason="live smoke disabled")
