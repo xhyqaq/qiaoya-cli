@@ -78,6 +78,8 @@ description: Use when the user asks about qiaoya community information, welcome-
 - 资源链接或文件明显是视频，例如 `.mp4`、`.mov`、`.mkv`、`.avi`、`.webm`
 - 页面里有视频播放器或视频资源地址
 - 用户明确让你总结视频、整理视频重点、提炼课程视频内容
+- `chapter get`、`course` 等返回里出现 `contentType: "VIDEO"`
+- 正文内容里出现 `!video[...]`、视频 embed 标记，或 `/api/public/resource/.../access` 这类视频资源访问地址
 
 默认建议的本地转写后端是 `faster-whisper`，不是 `FunASR`。原因是它更适合作为默认兜底方案：安装和集成更轻，足够覆盖“先转成文字，再交给 AI 分析”这条主链路。
 
@@ -207,6 +209,7 @@ AI 日报类：
 - 只有视频时，先说明“我可以先转成文字，再继续分析”
 - 默认建议使用本地 `faster-whisper`
 - 先征得用户同意，再进入转写和后续总结
+- 如果 `chapter get` 已返回 `contentType: "VIDEO"` 或正文里出现 `!video[...]`，就应立即按视频资源处理，而不是直接把正文残余文字当成完整内容总结
 
 个人任务类：
 - 先确认是否已登录
