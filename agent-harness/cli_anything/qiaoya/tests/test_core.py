@@ -272,45 +272,6 @@ def test_resource_access_url_uses_public_redirect_endpoint(tmp_path):
     assert client.get_resource_access_url("res-1") == "https://code.xhyovo.cn/api/public/resource/res-1/access"
 
 
-def test_oauth2_authorize_maps_payload_to_snake_case(tmp_path):
-    client = _make_client(tmp_path)
-    captured = {}
-
-    def fake_request(method, url, **kwargs):
-        captured["method"] = method
-        captured["url"] = url
-        captured["json"] = kwargs.get("json")
-        captured["headers"] = kwargs.get("headers", {})
-        return DummyResponse(body={"code": 200, "data": "auth-code-1"})
-
-    client.session.request = fake_request
-
-    client.oauth2_authorize(
-        client_id="cli-app",
-        redirect_uri="https://example.com/callback",
-        response_type="code",
-        scope="profile",
-        state="state-1",
-        code_challenge="challenge",
-        code_challenge_method="S256",
-        approved=True,
-    )
-
-    assert captured["method"] == "POST"
-    assert captured["url"] == "https://code.xhyovo.cn/api/public/oauth2/authorize"
-    assert captured["json"] == {
-        "client_id": "cli-app",
-        "redirect_uri": "https://example.com/callback",
-        "response_type": "code",
-        "scope": "profile",
-        "state": "state-1",
-        "code_challenge": "challenge",
-        "code_challenge_method": "S256",
-        "approved": True,
-    }
-    assert "Authorization" not in captured["headers"]
-
-
 def test_change_password_uses_expected_payload(tmp_path):
     client = _make_client(tmp_path)
     captured = {}

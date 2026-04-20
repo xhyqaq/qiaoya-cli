@@ -275,24 +275,6 @@ class FakeClient:
     def send_chat_message(self, room_id, content, message_type="TEXT"):
         return self.post(f"/api/app/chat-rooms/{room_id}/messages", json_data={"content": content, "messageType": message_type})
 
-    def get_github_authorize_url(self):
-        return self.get("/api/public/oauth/github/url", auth=False)
-
-    def get_github_bind_status(self):
-        return self.get("/api/user/oauth/github/status")
-
-    def list_oauth2_authorizations(self, page=1, size=10):
-        return self.get("/api/user/oauth2/authorizations", params={"pageNum": page, "pageSize": size})
-
-    def revoke_oauth2_authorization(self, client_id):
-        return self.delete(f"/api/user/oauth2/authorizations/{client_id}")
-
-    def oauth2_get_client_info(self, client_id):
-        return self.get(f"/api/public/oauth2/clients/{client_id}", auth=False)
-
-    def oauth2_get_consent(self, client_id):
-        return self.get("/api/public/oauth2/consent", auth=False, params={"clientId": client_id})
-
     def change_password(self, old_password, new_password):
         return self.put("/api/user/password", json_data={"oldPassword": old_password, "newPassword": new_password})
 
@@ -350,7 +332,6 @@ def test_help_and_repl_quit(cli_env, monkeypatch):
     assert "public" in help_result.output
     assert "ai-news" in help_result.output
     assert "chat" in help_result.output
-    assert "oauth" in help_result.output
 
     repl_result = _invoke([])
     assert repl_result.exit_code == 0
@@ -514,7 +495,7 @@ def test_learning_social_and_course_commands(cli_env):
     assert any(call["path"] == "/api/user/subscription/activate-cdk" for call in FakeClient.instances[-1].calls)
 
 
-def test_public_ai_news_and_oauth_commands(cli_env):
+def test_public_and_ai_news_commands(cli_env):
     FakeClient.responses = {
         ("GET", "/api/public/site/about"): {"title": "关于敲鸭", "content": "站点介绍"},
         ("GET", "/api/public/stats/users"): {"totalCount": 128},
@@ -529,9 +510,6 @@ def test_public_ai_news_and_oauth_commands(cli_env):
         ("GET", "/api/app/update-logs"): [{"id": "log-1", "title": "版本更新"}],
         ("GET", "/api/app/ai-news/today"): {"date": "2026-04-20", "titles": ["GPT-5.5"]},
         ("GET", "/api/app/ai-news/history"): {"records": [{"date": "2026-04-19", "title": "历史日报"}], "total": 1, "current": 1, "pages": 1},
-        ("GET", "/api/public/oauth/github/url"): {"url": "https://github.com/login/oauth/authorize?client_id=1"},
-        ("GET", "/api/public/oauth2/clients/client-1"): {"clientId": "client-1", "clientName": "示例应用"},
-        ("GET", "/api/public/oauth2/consent"): {"consented": True, "scopes": ["profile"]},
     }
 
     about = _invoke(["public", "about"])
@@ -558,18 +536,6 @@ def test_public_ai_news_and_oauth_commands(cli_env):
     assert ai_history.exit_code == 0
     assert "历史日报" in ai_history.output
 
-    github_url = _invoke(["oauth", "github-url"])
-    assert github_url.exit_code == 0
-    assert "github.com/login/oauth/authorize" in github_url.output
-
-    oauth_client = _invoke(["oauth", "client", "client-1"])
-    assert oauth_client.exit_code == 0
-    assert "示例应用" in oauth_client.output
-
-    oauth_consent = _invoke(["oauth", "consent", "client-1"])
-    assert oauth_consent.exit_code == 0
-    assert "profile" in oauth_consent.output
-
 
 def test_unread_chat_and_user_setting_commands(cli_env):
     login_result = _invoke(["auth", "login", "-e", "tester@example.com", "-p", "secret"])
@@ -585,9 +551,6 @@ def test_unread_chat_and_user_setting_commands(cli_env):
         ("PUT", "/api/app/chat-rooms/room-1/visit"): {},
         ("GET", "/api/app/chat-rooms/room-1/messages"): {"records": [{"id": "msg-1", "content": "hello"}], "total": 1, "current": 1, "pages": 1},
         ("POST", "/api/app/chat-rooms/room-1/messages"): {"id": "msg-2", "content": "你好"},
-        ("GET", "/api/user/oauth/github/status"): {"bound": True, "provider": "github"},
-        ("GET", "/api/user/oauth2/authorizations"): {"records": [{"clientId": "client-1", "clientName": "示例应用"}], "total": 1, "current": 1, "pages": 1},
-        ("DELETE", "/api/user/oauth2/authorizations/client-1"): {},
         ("PUT", "/api/user/password"): {"id": "u-1"},
         ("PUT", "/api/user/email-notification"): {"id": "u-1", "emailNotificationEnabled": True},
         ("GET", "/api/user/menu-codes"): ["POST_READ", "COURSE_READ"],
@@ -620,18 +583,6 @@ def test_unread_chat_and_user_setting_commands(cli_env):
     chat_send = _invoke(["chat", "send", "room-1", "--content", "你好"])
     assert chat_send.exit_code == 0
     assert any(call["path"] == "/api/app/chat-rooms/room-1/messages" and call["method"] == "POST" for call in FakeClient.instances[-1].calls)
-
-    github_status = _invoke(["oauth", "github-status"])
-    assert github_status.exit_code == 0
-    assert "True" in github_status.output or "是" in github_status.output
-
-    authorizations = _invoke(["oauth", "authorizations"])
-    assert authorizations.exit_code == 0
-    assert "示例应用" in authorizations.output
-
-    revoke = _invoke(["oauth", "revoke", "client-1"])
-    assert revoke.exit_code == 0
-    assert any(call["path"] == "/api/user/oauth2/authorizations/client-1" for call in FakeClient.instances[-1].calls)
 
     change_password = _invoke(["user", "change-password", "--old-password", "old", "--new-password", "new"])
     assert change_password.exit_code == 0

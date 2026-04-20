@@ -708,18 +708,6 @@ class QiaoyaClient:
         data = self.get("/api/app/ai-tool/summary", auth=False)
         return data if isinstance(data, dict) else {}
 
-    def get_codex_info(self) -> dict[str, Any]:
-        data = self.get("/api/app/codex/info", auth=False)
-        return data if isinstance(data, dict) else {}
-
-    def get_codex_p_info(self) -> dict[str, Any]:
-        data = self.get("/api/app/codex-p/info", auth=False)
-        return data if isinstance(data, dict) else {}
-
-    def list_codex_p_infos(self) -> list[dict[str, Any]]:
-        data = self.get("/api/app/codex-p/infos", auth=False)
-        return data if isinstance(data, list) else []
-
     # ──────────────────────────── Expressions / Testimonials ────────────────────────────
 
     def list_expressions(self) -> list[dict[str, Any]]:
@@ -865,69 +853,6 @@ class QiaoyaClient:
             f"/api/app/chat-rooms/{room_id}/messages",
             json_data={"content": content, "messageType": message_type},
         )
-        return data if isinstance(data, dict) else {}
-
-    # ──────────────────────────── OAuth ────────────────────────────
-
-    def get_github_authorize_url(self) -> dict[str, Any]:
-        data = self.get("/api/public/oauth/github/url", auth=False)
-        return data if isinstance(data, dict) else {}
-
-    def github_public_callback(self, code: str, state: str) -> dict[str, Any]:
-        data = self.get("/api/public/oauth/github/callback", auth=False, params={"code": code, "state": state})
-        return data if isinstance(data, dict) else {}
-
-    def get_github_bind_status(self) -> dict[str, Any]:
-        data = self.get("/api/user/oauth/github/status")
-        return data if isinstance(data, dict) else {}
-
-    def bind_github(self, code: str, state: str) -> dict[str, Any]:
-        data = self.post("/api/user/oauth/github/bind", json_data={"code": code, "state": state})
-        return data if isinstance(data, dict) else {}
-
-    def unbind_github(self) -> Any:
-        return self.post("/api/user/oauth/github/unbind")
-
-    def list_oauth2_authorizations(self, page: int = 1, size: int = 10) -> dict[str, Any]:
-        data = self.get("/api/user/oauth2/authorizations", params={"pageNum": page, "pageSize": size})
-        return data if isinstance(data, dict) else {"records": data or []}
-
-    def revoke_oauth2_authorization(self, client_id: str) -> Any:
-        return self.delete(f"/api/user/oauth2/authorizations/{client_id}")
-
-    def oauth2_authorize(
-        self,
-        client_id: str,
-        redirect_uri: str,
-        response_type: str,
-        scope: Optional[str] = None,
-        state: Optional[str] = None,
-        code_challenge: Optional[str] = None,
-        code_challenge_method: Optional[str] = None,
-        approved: bool = True,
-    ) -> Any:
-        payload: dict[str, Any] = {
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "response_type": response_type,
-            "approved": approved,
-        }
-        if scope is not None:
-            payload["scope"] = scope
-        if state is not None:
-            payload["state"] = state
-        if code_challenge is not None:
-            payload["code_challenge"] = code_challenge
-        if code_challenge_method is not None:
-            payload["code_challenge_method"] = code_challenge_method
-        return self.post("/api/public/oauth2/authorize", auth=False, json_data=payload)
-
-    def oauth2_get_client_info(self, client_id: str) -> dict[str, Any]:
-        data = self.get(f"/api/public/oauth2/clients/{client_id}", auth=False)
-        return data if isinstance(data, dict) else {}
-
-    def oauth2_get_consent(self, client_id: str) -> dict[str, Any]:
-        data = self.get("/api/public/oauth2/consent", auth=False, params={"clientId": client_id})
         return data if isinstance(data, dict) else {}
 
     # ──────────────────────────── Compatibility aliases ────────────────────────────
