@@ -20,6 +20,26 @@ DEVICE_HEADER = "X-Device-ID"
 pass_client = click.make_pass_decorator(QiaoyaClient, ensure=True)
 
 
+def _ensure_utf8_stdio():
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None or not hasattr(stream, "reconfigure"):
+            continue
+
+        encoding = (getattr(stream, "encoding", "") or "").lower()
+        if encoding == "utf-8":
+            continue
+
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            # Best effort: avoid crashing on consoles that expose non-UTF8 stdio.
+            pass
+
+
+_ensure_utf8_stdio()
+
+
 def _json_mode(ctx: click.Context) -> bool:
     root = ctx.find_root()
     if root is not None:

@@ -1,4 +1,6 @@
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -314,3 +316,23 @@ def test_qiaoya_cli_import_does_not_depend_on_adjacent_formatter_source_file(tmp
     exec(compile(source, str(fake_cli_path), "exec"), module_globals)
 
     assert module_globals["_FORMATTERS"].short_id("abcdefghi") == "abcdefgh…"
+
+
+def test_qiaoya_cli_help_survives_non_utf8_stdout_encoding():
+    harness_root = Path(__file__).resolve().parents[3]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(harness_root)
+    env["PYTHONIOENCODING"] = "cp1252"
+
+    result = subprocess.run(
+        [sys.executable, "-m", "cli_anything.qiaoya.qiaoya_cli", "--help"],
+        cwd=harness_root,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    output = result.stdout.decode("utf-8", errors="replace")
+    assert "Usage:" in output
