@@ -12,7 +12,7 @@
     "qiaoya": "bin/qiaoya.js"
   },
   "scripts": {
-    "test": "node --test tests/bootstrap.test.js tests/binary.test.js"
+    "test": "node --test tests/bootstrap.test.js tests/binary.test.js tests/runtime.test.js"
   },
   "license": "MIT"
 }

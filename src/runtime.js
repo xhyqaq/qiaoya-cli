@@ -1,10 +1,11 @@
-const { execFileSync } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 const DEFAULT_RUNTIME_SPEC = 'git+https://github.com/xhyqaq/qiaoya-cli.git#subdirectory=agent-harness';
 const PACKAGE_NAME = 'cli-anything-qiaoya';
 
-function commandExists(command) {
+function commandExistsImpl(command) {
   try {
     const output = execFileSync('which', [command], { encoding: 'utf8' }).trim();
     return { ok: true, detail: output };
@@ -13,7 +14,7 @@ function commandExists(command) {
   }
 }
 
-function run(command, args, options = {}) {
+function runImpl(command, args, options = {}) {
   return execFileSync(command, args, {
     encoding: 'utf8',
     stdio: options.capture ? ['ignore', 'pipe', 'pipe'] : 'pipe',
@@ -22,7 +23,46 @@ function run(command, args, options = {}) {
   });
 }
 
-async function installRuntime({ runtimeSource = DEFAULT_RUNTIME_SPEC, cwd, env = process.env, bundleDir }) {
+function ensureBundleScript({ bundleDir, runtimeHome, platform = process.platform }) {
+  const scriptsDir = path.join(bundleDir, 'scripts');
+  const targetName = platform === 'win32' ? 'qiaoya.exe' : 'qiaoya';
+  const targetPath = path.join(scriptsDir, targetName);
+  if (fs.existsSync(targetPath)) {
+    return targetPath;
+  }
+
+  const venvScriptsDir = path.join(
+    runtimeHome,
+    'venvs',
+    PACKAGE_NAME,
+    platform === 'win32' ? 'Scripts' : 'bin',
+  );
+  const sourcePath = path.join(venvScriptsDir, targetName);
+  if (!fs.existsSync(sourcePath)) {
+    throw new Error(`pipx 安装完成，但未找到 runtime 脚本: ${sourcePath}`);
+  }
+
+  fs.mkdirSync(scriptsDir, { recursive: true });
+  try {
+    fs.symlinkSync(sourcePath, targetPath);
+  } catch {
+    fs.copyFileSync(sourcePath, targetPath);
+    fs.chmodSync(targetPath, 0o755);
+  }
+  return targetPath;
+}
+
+async function installRuntime({
+  runtimeSource = DEFAULT_RUNTIME_SPEC,
+  cwd,
+  env = process.env,
+  bundleDir,
+  deps = {},
+}) {
+  const commandExists = deps.commandExists || commandExistsImpl;
+  const run = deps.run || runImpl;
+  const ensureScript = deps.ensureBundleScript || ensureBundleScript;
+
   const python3 = commandExists('python3');
   const pipx = commandExists('pipx');
   if (!python3.ok) {
@@ -51,7 +91,11 @@ async function installRuntime({ runtimeSource = DEFAULT_RUNTIME_SPEC, cwd, env =
   }
 
   run('pipx', ['install', runtimeSource], { cwd, env: installEnv });
-  const qiaoyaCommand = path.join(scriptsDir, 'qiaoya');
+  const qiaoyaCommand = ensureScript({
+    bundleDir,
+    runtimeHome,
+    platform: env.__QIAOYA_TEST_PLATFORM__ || process.platform,
+  });
   const helpOutput = run(qiaoyaCommand, ['--help'], { cwd, env, capture: true });
   return {
     runtimeCheck: helpOutput,
@@ -76,15 +120,15 @@ async function getDoctorReport({
   let runtimeDetail = 'qiaoya not found';
   let runtimeOk = false;
   try {
-    runtimeDetail = run(scriptPath, ['--help'], { env, capture: true }).split('\n')[0];
+    runtimeDetail = runImpl(scriptPath, ['--help'], { env, capture: true }).split('\n')[0];
     runtimeOk = true;
   } catch {
     runtimeOk = false;
   }
 
   return {
-    python3: commandExists('python3'),
-    pipx: commandExists('pipx'),
+    python3: commandExistsImpl('python3'),
+    pipx: commandExistsImpl('pipx'),
     codexHome: { ok: true, detail: codexHome },
     skillBundle: { ok: fs.existsSync(bundleDir), detail: bundleDir },
     script: { ok: fs.existsSync(scriptPath), detail: scriptPath },
