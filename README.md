@@ -58,6 +58,8 @@ npx qiaoya install --runtime-kind binary --binary-source /path/to/qiaoya-binary
 - `qiaoya-linux-x64`
 - `qiaoya-windows-x64.exe`
 
+如果最新 release 资产还没发布完成，安装器会明确提示 `release 二进制资产尚未就绪`，随后自动回退到 Python runtime；这不影响当前 skill bundle 的可用性。
+
 runtime 安装后可直接调用：
 
 ```bash

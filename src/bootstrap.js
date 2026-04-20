@@ -171,7 +171,8 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   if (runtimeResult && runtimeResult.runtimeCheck) {
     logger.log('runtime check: ok');
   }
-  logger.log('重启 Codex 后新的 qiaoya skill 才会被加载。');
+  logger.log('qiaoya 脚本现在已经可直接使用。');
+  logger.log('如果当前 Codex 会话还没发现这个新 skill，重启或开启新会话后会稳定生效。');
 }
 
 module.exports = {

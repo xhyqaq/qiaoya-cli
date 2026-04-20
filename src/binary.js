@@ -72,6 +72,10 @@ function downloadToFile(url, targetPath) {
       if (response.statusCode !== 200) {
         file.close();
         fs.rmSync(targetPath, { force: true });
+        if (response.statusCode === 404) {
+          reject(new Error(`release 二进制资产尚未就绪: HTTP ${response.statusCode}`));
+          return;
+        }
         reject(new Error(`下载二进制失败: HTTP ${response.statusCode}`));
         return;
       }
