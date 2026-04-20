@@ -56,7 +56,7 @@ description: Use when the user asks about qiaoya community information, welcome-
 
 下面是默认首选路径，不是完整白名单。若默认路径信息不足，再用 `qiaoya --help` 或对应命令组 `--help` 扩展。
 
-- 介绍社区：先 `public about`，再按需补 `public stats`
+- 介绍社区：这是少数默认允许组合多个公开接口的任务。优先聚合 `public about`、`public stats`、`public course-list`、`public plans`、`public testimonials`，必要时再补 `public services`。默认要把社区人数/内容总量、课程数量、套餐/服务、公开评价一起组织出来
 - 看课程列表或欢迎页课程：先 `public course-list`
 - 推荐课程：先 `public course-list`，只在需要展开某门课时再用 `public course-get`
 - 今天 AI 日报：先 `ai-news today`
@@ -66,7 +66,7 @@ description: Use when the user asks about qiaoya community information, welcome-
 - 个人任务：先 `auth status`，已登录后再进入 `notification`、`learning`、`post`、`chat` 等命令组
 
 更细一点的默认路由：
-- “介绍社区 / 这个社区是干嘛的”：`public about` -> `public stats`
+- “介绍社区 / 这个社区是干嘛的”：`public about` -> `public stats` -> `public course-list` -> `public plans` -> `public testimonials` -> 必要时 `public services`
 - “欢迎页有哪些课程 / 给我列课程”：`public course-list`
 - “推荐几门课给我”：`public course-list` -> 必要时 `public course-get`
 - “今天 AI 日报”：`ai-news today`
@@ -124,15 +124,24 @@ description: Use when the user asks about qiaoya community information, welcome-
 - 优先少量、命中率高的请求，不要为一个简单问题连续试很多相似接口
 - 先返回结论，再给依据
 - 课程类问题优先总结适合谁、为什么、建议从哪门开始
+- 对“介绍社区”这类 broad query，可以一次性组合少量高价值公开接口，不要过早停在单个 `about`
 - 若当前命令组不够用，主动查看 `~/.codex/skills/qiaoya/scripts/qiaoya <group> --help`
 - 如果 `scripts/qiaoya` 不存在，提示先运行 `npx qiaoya install`
 
 ## Response Patterns
 
 社区介绍类：
-- 先说社区定位
-- 再说主要内容和服务
-- 最后补数据规模或更新状态
+- 默认使用公开接口做一个完整概览，而不是只复述 `about`
+- 优先覆盖：主理人/社区定位、内容规模、课程供给、套餐/服务、公开评价
+- 若接口已提供人数、总量、课程列表、套餐、评价，就默认直接汇总这些事实，不要把它们留到用户追问
+- 组织顺序建议：
+  1. 社区是什么、主理人是谁
+  2. 当前内容规模，例如总量、课程数量
+  3. 课程/主题方向
+  4. 套餐、服务或商业化能力
+  5. 用户评价或公开口碑
+- 如果接口有数据，就直接写进介绍；不要只说“如果你想我可以继续查”
+- 只有在这些公开接口都不足时，才追问用户想看课程、更新还是 AI 日报
 
 课程推荐类：
 - 先给推荐结论
