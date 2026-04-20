@@ -2,6 +2,12 @@
   "name": "qiaoya",
   "version": "1.1.0",
   "description": "Agent-first bootstrap for qiaoya Codex skill and runtime",
+  "files": [
+    "README.md",
+    "bin",
+    "src",
+    "skills"
+  ],
   "bin": {
     "qiaoya": "bin/qiaoya.js"
   },
