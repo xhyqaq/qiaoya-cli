@@ -297,3 +297,20 @@ def test_api_error_exposes_message_code_and_status():
     assert err.message == "boom"
     assert err.code == 123
     assert err.status_code == 500
+
+
+def test_qiaoya_cli_import_does_not_depend_on_adjacent_formatter_source_file(tmp_path):
+    source_path = Path(__file__).resolve().parents[1] / "qiaoya_cli.py"
+    source = source_path.read_text(encoding="utf-8")
+    fake_cli_path = tmp_path / "bundle" / "qiaoya_cli.py"
+
+    module_globals = {
+        "__name__": "cli_anything.qiaoya.qiaoya_cli_binary_probe",
+        "__file__": str(fake_cli_path),
+        "__package__": "cli_anything.qiaoya",
+        "__builtins__": __builtins__,
+    }
+
+    exec(compile(source, str(fake_cli_path), "exec"), module_globals)
+
+    assert module_globals["_FORMATTERS"].short_id("abcdefghi") == "abcdefgh…"

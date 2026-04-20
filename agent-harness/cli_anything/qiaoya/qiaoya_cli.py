@@ -3,27 +3,17 @@
 
 与 https://code.xhyovo.cn/ API 交互的命令行工具。
 """
-import importlib.util
 import json
 import shlex
 import sys
 import uuid
-from pathlib import Path
 from typing import Any, Callable, Optional
 
 import click
 
+from cli_anything.qiaoya.core import formatters as _FORMATTERS
 from cli_anything.qiaoya.utils.api_client import APIError, QiaoyaClient, SESSION_FILE
 from cli_anything.qiaoya.utils import output as out
-
-_FORMATTERS_PATH = Path(__file__).with_name("core") / "formatters.py"
-_FORMATTERS_SPEC = importlib.util.spec_from_file_location(
-    "cli_anything.qiaoya._formatters",
-    _FORMATTERS_PATH,
-)
-assert _FORMATTERS_SPEC is not None and _FORMATTERS_SPEC.loader is not None
-_FORMATTERS = importlib.util.module_from_spec(_FORMATTERS_SPEC)
-_FORMATTERS_SPEC.loader.exec_module(_FORMATTERS)
 
 DEVICE_HEADER = "X-Device-ID"
 
