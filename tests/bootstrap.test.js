@@ -78,3 +78,28 @@ test('doctor reports python and pipx checks', async () => {
   assert.match(output, /script/);
   assert.match(output, /runtime/);
 });
+
+test('binary runtime mode uses binary installer', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'qiaoya-bootstrap-bin-'));
+  const codexHome = path.join(tmp, '.codex');
+  const logger = makeLogger();
+  const binaryCalls = [];
+
+  await main([
+    'install',
+    '--codex-home', codexHome,
+    '--runtime-kind', 'binary',
+    '--binary-source', '/tmp/qiaoya-binary',
+  ], {
+    logger,
+    cwd: process.cwd(),
+    installBinaryRuntime: async (options) => {
+      binaryCalls.push(options);
+      return { scriptPath: path.join(codexHome, 'skills', 'qiaoya', 'scripts', 'qiaoya') };
+    },
+  });
+
+  assert.equal(binaryCalls.length, 1);
+  assert.equal(binaryCalls[0].binarySource, '/tmp/qiaoya-binary');
+  assert.match(logger.lines.join('\n'), /runtime 已安装到/);
+});

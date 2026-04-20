@@ -3,13 +3,14 @@ const path = require('node:path');
 
 const { installCodexSkill } = require('./installers/codex');
 const { installRuntime, getDoctorReport, DEFAULT_RUNTIME_SPEC } = require('./runtime');
+const { installBinaryRuntime } = require('./binary');
 
 function printHelp(logger) {
   logger.log(`qiaoya agent bootstrap
 
 Usage:
   npx qiaoya
-  npx qiaoya install [--codex-home <path>] [--runtime-source <spec-or-path>]
+  npx qiaoya install [--codex-home <path>] [--runtime-source <spec-or-path>] [--binary-source <file-or-url>] [--runtime-kind auto|python|binary]
   npx qiaoya doctor [--codex-home <path>]
   npx qiaoya --help
 
@@ -26,6 +27,8 @@ function parseArgs(argv) {
     agent: 'codex',
     codexHome: path.join(os.homedir(), '.codex'),
     runtimeSource: DEFAULT_RUNTIME_SPEC,
+    binarySource: null,
+    runtimeKind: 'auto',
     force: true,
   };
 
@@ -52,6 +55,14 @@ function parseArgs(argv) {
       options.runtimeSource = args.shift() || options.runtimeSource;
       continue;
     }
+    if (token === '--binary-source') {
+      options.binarySource = args.shift() || options.binarySource;
+      continue;
+    }
+    if (token === '--runtime-kind') {
+      options.runtimeKind = args.shift() || options.runtimeKind;
+      continue;
+    }
     if (token === '--force') {
       options.force = true;
       continue;
@@ -73,6 +84,7 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   const resolved = parseArgs(argv);
   const skillSourceDir = path.resolve(cwd, 'skills', 'qiaoya');
   const runtimeInstaller = deps.installRuntime || installRuntime;
+  const binaryInstaller = deps.installBinaryRuntime || installBinaryRuntime;
   const doctorReporter = deps.getDoctorReport || getDoctorReport;
 
   if (resolved.command === 'help') {
@@ -99,11 +111,22 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   });
   logger.log(`qiaoya skill bundle 已安装到 ${skillInstall.targetDir}`);
 
-  const runtimeResult = await runtimeInstaller({
-    runtimeSource: resolved.options.runtimeSource,
-    cwd,
-    bundleDir: skillInstall.targetDir,
-  });
+  let runtimeResult;
+  const runtimeKind = resolved.options.runtimeKind;
+  const binaryRequested = runtimeKind === 'binary' || (runtimeKind === 'auto' && !!resolved.options.binarySource);
+
+  if (binaryRequested) {
+    runtimeResult = await binaryInstaller({
+      bundleDir: skillInstall.targetDir,
+      binarySource: resolved.options.binarySource || undefined,
+    });
+  } else {
+    runtimeResult = await runtimeInstaller({
+      runtimeSource: resolved.options.runtimeSource,
+      cwd,
+      bundleDir: skillInstall.targetDir,
+    });
+  }
 
   logger.log(`qiaoya runtime 已安装到 ${runtimeResult.scriptPath || path.join(skillInstall.targetDir, 'scripts', 'qiaoya')}`);
   if (runtimeResult && runtimeResult.runtimeCheck) {

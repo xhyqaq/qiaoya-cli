@@ -13,7 +13,7 @@ npx qiaoya
 
 完成 skill 安装和 runtime 接入。
 
-首版只面向 Codex，不扩展到 Claude Code、Cursor、OpenCode。欢迎页课程与 AI 日报保留，因为它们是 agent 做语义总结的高价值入口。
+首版只面向 Codex，不扩展到 Claude Code、Cursor、OpenCode。欢迎页课程与 AI 日报保留，因为它们是 agent 做语义总结的高价值入口。当前实现已经具备 binary-ready 骨架：平台识别、命名规则和 bundle 内 `scripts/` 安装路径已固定，但默认安装仍保留 Python runtime。
 
 ## Scope
 
@@ -24,6 +24,7 @@ npx qiaoya
 - 安装 Codex skill 到 `~/.codex/skills/qiaoya`
 - 使用现有 Python runtime，并通过 bundle 内部 `pipx` 安装到 `scripts/`
 - 提供 `--help`、`install`、`doctor` 等最小命令面
+- 预留二进制安装模式与 GitHub Release 资产命名规则
 - 增加 Node 测试与 CI 校验
 
 排除范围：
@@ -31,7 +32,7 @@ npx qiaoya
 - 多 agent 安装器适配
 - Python runtime 改写为 Node
 - 多平台独立二进制发布
-- 远程下载预编译 runtime
+- 真正的远程 release 下载与验签
 
 ## Architecture
 
@@ -67,9 +68,15 @@ npx qiaoya
 - `--agent codex`
 - `--codex-home <path>`
 - `--runtime-source <path-or-spec>`
+- `--binary-source <path-or-url>`
+- `--runtime-kind auto|python|binary`
 - `--force`
 
-其中 `--runtime-source` 主要用于本地开发与 CI，允许从本地 `agent-harness` 安装，而不是强依赖 GitHub。
+其中：
+
+- `--runtime-source` 主要用于本地开发与 CI，允许从本地 `agent-harness` 安装 Python runtime
+- `--binary-source` 用于本地假二进制或后续 release 下载入口
+- `--runtime-kind` 当前默认 `auto`，实际等价于优先 Python；显式指定 `binary` 时安装 bundle 内二进制
 
 ## Skill Design
 
@@ -86,6 +93,7 @@ npx qiaoya
 
 - skill bundle 安装路径与文件复制
 - runtime 安装到 `scripts/` 的命令拼接
+- 二进制平台识别、命名规则与本地二进制安装
 - `doctor` 输出
 - CLI 帮助输出
 
@@ -95,6 +103,7 @@ CI 扩展为同时运行：
 - Node 测试
 - `node bin/qiaoya.js --help`
 - 使用本地 `agent-harness` 作为 runtime source 的安装 dry-run 或真实安装校验
+- 使用假二进制文件验证 `binary` 模式安装路径
 
 ## Risks
 

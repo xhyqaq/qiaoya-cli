@@ -76,3 +76,11 @@ jobs:
           test -f "${RUNNER_TEMP}/codex-home/skills/qiaoya/SKILL.md"
           test -f "${RUNNER_TEMP}/codex-home/skills/qiaoya/scripts/qiaoya"
           "${RUNNER_TEMP}/codex-home/skills/qiaoya/scripts/qiaoya" --help
+
+      - name: Verify binary install skeleton
+        run: |
+          mkdir -p "${RUNNER_TEMP}/fake-bin"
+          printf '#!/usr/bin/env bash\necho qiaoya-binary\n' > "${RUNNER_TEMP}/fake-bin/qiaoya-darwin-arm64"
+          chmod +x "${RUNNER_TEMP}/fake-bin/qiaoya-darwin-arm64"
+          node bin/qiaoya.js install --codex-home "${RUNNER_TEMP}/codex-home-bin" --runtime-kind binary --binary-source "${RUNNER_TEMP}/fake-bin/qiaoya-darwin-arm64"
+          test -f "${RUNNER_TEMP}/codex-home-bin/skills/qiaoya/scripts/qiaoya"

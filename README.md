@@ -31,12 +31,24 @@ npx qiaoya install
 npx qiaoya doctor
 ```
 
+二进制模式骨架已经接好，但当前默认仍保留 Python runtime 路径。显式指定时可以把单文件二进制放进 skill bundle：
+
+```bash
+npx qiaoya install --runtime-kind binary --binary-source /path/to/qiaoya-binary
+```
+
 ## Runtime 说明
 
 当前 bootstrap 安装的是现有 Python runtime，所以目前仍然需要：
 
 - `python3`
 - `pipx`
+
+后续如果 GitHub Releases 提供了平台二进制，`binary` 模式会把对应文件安装到：
+
+```text
+~/.codex/skills/qiaoya/scripts/qiaoya
+```
 
 runtime 安装后可直接调用：
 
@@ -59,6 +71,7 @@ Node bootstrap：
 ```bash
 npm test
 node bin/qiaoya.js --help
+node bin/qiaoya.js install --runtime-kind binary --binary-source /tmp/qiaoya-binary
 ```
 
 Python runtime：

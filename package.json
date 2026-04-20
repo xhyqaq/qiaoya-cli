@@ -6,7 +6,7 @@
     "qiaoya": "bin/qiaoya.js"
   },
   "scripts": {
-    "test": "node --test tests/bootstrap.test.js"
+    "test": "node --test tests/bootstrap.test.js tests/binary.test.js"
   },
   "license": "MIT"
 }
