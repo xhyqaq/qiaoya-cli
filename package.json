@@ -1,6 +1,6 @@
 {
   "name": "qiaoya",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Agent-first bootstrap for qiaoya Codex skill and runtime",
   "files": [
     "README.md",
