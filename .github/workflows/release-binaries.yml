@@ -11,6 +11,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: release-binaries
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
