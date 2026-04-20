@@ -704,10 +704,6 @@ class QiaoyaClient:
         data = self.get(f"/api/app/ai-news/detail/{news_id}", auth=False)
         return data if isinstance(data, dict) else {}
 
-    def get_ai_tool_summary(self) -> dict[str, Any]:
-        data = self.get("/api/app/ai-tool/summary", auth=False)
-        return data if isinstance(data, dict) else {}
-
     # ──────────────────────────── Expressions / Testimonials ────────────────────────────
 
     def list_expressions(self) -> list[dict[str, Any]]:

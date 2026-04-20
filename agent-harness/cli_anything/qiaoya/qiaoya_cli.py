@@ -1747,25 +1747,6 @@ def ai_news_get(ctx: click.Context, news_id: str):
         _fail(ctx, str(exc))
 
 
-@cli.group("ai-tool")
-def ai_tool():
-    """AI 工具摘要"""
-
-
-@ai_tool.command("summary")
-@click.pass_context
-def ai_tool_summary(ctx: click.Context):
-    client = _client(ctx)
-    try:
-        data = client.get_ai_tool_summary()
-        if _json_mode(ctx):
-            out.print_json(data)
-        else:
-            _print_simple_detail(data, [("API Key", "apiKey"), ("今日使用", "todayUsed"), ("今日预算", "todayBudget"), ("本周使用", "weekUsed"), ("本周预算", "weekBudget")])
-    except APIError as exc:
-        _fail(ctx, str(exc))
-
-
 @cli.group("expression")
 def expression():
     """表情资源"""

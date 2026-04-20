@@ -22,11 +22,24 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install pytest pipx
           python -m pip install -e ./agent-harness
+
+      - name: Run bootstrap tests
+        run: |
+          npm test
+
+      - name: Verify bootstrap help
+        run: |
+          node bin/qiaoya.js --help
 
       - name: Run pytest
         run: |
@@ -51,4 +64,14 @@ jobs:
           QIAOYA_REPO_URL: ./agent-harness
         run: |
           bash ./agent-harness/install.sh
+          "$PIPX_BIN_DIR/qiaoya" --help
+
+      - name: Verify bootstrap install against local runtime
+        env:
+          PIPX_HOME: ${{ runner.temp }}/pipx-home-bootstrap
+          PIPX_BIN_DIR: ${{ runner.temp }}/pipx-bin-bootstrap
+          PATH: ${{ runner.temp }}/pipx-bin-bootstrap:${{ env.PATH }}
+        run: |
+          node bin/qiaoya.js install --codex-home "${RUNNER_TEMP}/codex-home" --runtime-source ./agent-harness
+          test -f "${RUNNER_TEMP}/codex-home/skills/qiaoya/SKILL.md"
           "$PIPX_BIN_DIR/qiaoya" --help

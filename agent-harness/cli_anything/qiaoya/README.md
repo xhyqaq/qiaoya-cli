@@ -93,7 +93,6 @@ qiaoya chat rooms
 qiaoya chat send <room-id> --content '你好'
 qiaoya unread summary
 qiaoya resource access-url <resource-id>
-qiaoya ai-tool summary
 ```
 
 进入交互模式：
