@@ -21,6 +21,7 @@ function installCodexSkill({ codexHome, skillSourceDir, force = true }) {
     fs.rmSync(targetDir, { recursive: true, force: true });
   }
   copyDirectory(skillSourceDir, targetDir);
+  fs.mkdirSync(path.join(targetDir, 'scripts'), { recursive: true });
   return { targetDir };
 }
 

@@ -31,7 +31,6 @@ test('help prints bootstrap usage', async () => {
 test('install copies skill into codex home and runs runtime install', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'qiaoya-bootstrap-'));
   const codexHome = path.join(tmp, '.codex');
-  const skillSource = path.join(process.cwd(), 'skills', 'qiaoya');
   const runtimeCalls = [];
   const logger = makeLogger();
 
@@ -44,12 +43,16 @@ test('install copies skill into codex home and runs runtime install', async () =
     },
   });
 
-  const skillPath = path.join(codexHome, 'skills', 'qiaoya', 'SKILL.md');
+  const bundleDir = path.join(codexHome, 'skills', 'qiaoya');
+  const skillPath = path.join(bundleDir, 'SKILL.md');
+  const scriptsDir = path.join(bundleDir, 'scripts');
   assert.equal(fs.existsSync(skillPath), true);
+  assert.equal(fs.existsSync(scriptsDir), true);
   assert.equal(runtimeCalls.length, 1);
   assert.equal(runtimeCalls[0].runtimeSource, './agent-harness');
+  assert.equal(runtimeCalls[0].bundleDir, bundleDir);
   assert.match(fs.readFileSync(skillPath, 'utf8'), /欢迎页课程/);
-  assert.match(logger.lines.join('\n'), /Codex skill 已安装/);
+  assert.match(logger.lines.join('\n'), /qiaoya skill bundle 已安装/);
 });
 
 test('doctor reports python and pipx checks', async () => {
@@ -62,13 +65,16 @@ test('doctor reports python and pipx checks', async () => {
       python3: { ok: true, detail: '/usr/bin/python3' },
       pipx: { ok: true, detail: '/usr/bin/pipx' },
       codexHome: { ok: true, detail: '/tmp/.codex' },
-      skill: { ok: false, detail: 'missing' },
-      runtime: { ok: true, detail: 'qiaoya 1.0.0' },
+      skillBundle: { ok: true, detail: '/tmp/.codex/skills/qiaoya' },
+      script: { ok: false, detail: 'missing scripts/qiaoya' },
+      runtime: { ok: true, detail: 'Usage: qiaoya' },
     }),
   });
 
   const output = logger.lines.join('\n');
   assert.match(output, /python3/);
   assert.match(output, /pipx/);
+  assert.match(output, /skillBundle/);
+  assert.match(output, /script/);
   assert.match(output, /runtime/);
 });

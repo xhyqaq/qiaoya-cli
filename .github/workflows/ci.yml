@@ -74,4 +74,5 @@ jobs:
         run: |
           node bin/qiaoya.js install --codex-home "${RUNNER_TEMP}/codex-home" --runtime-source ./agent-harness
           test -f "${RUNNER_TEMP}/codex-home/skills/qiaoya/SKILL.md"
-          "$PIPX_BIN_DIR/qiaoya" --help
+          test -f "${RUNNER_TEMP}/codex-home/skills/qiaoya/scripts/qiaoya"
+          "${RUNNER_TEMP}/codex-home/skills/qiaoya/scripts/qiaoya" --help

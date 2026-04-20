@@ -7,7 +7,7 @@
 - `agent-harness/`
   Python runtime，负责真实 API 调用
 - 根目录 npm bootstrap
-  负责 `npx qiaoya` 安装 Codex skill 和 runtime
+  负责 `npx qiaoya` 安装 Codex skill bundle 和 runtime
 
 ## Agent-First 用法
 
@@ -19,8 +19,9 @@ npx qiaoya
 
 它会做这些事：
 
-- 安装 Codex skill 到 `~/.codex/skills/qiaoya`
-- 用 `pipx` 安装或更新 `qiaoya` runtime
+- 安装 Codex skill bundle 到 `~/.codex/skills/qiaoya`
+- 把 runtime 放进 `~/.codex/skills/qiaoya/scripts/qiaoya`
+- 用 skill bundle 内部的 `.runtime/` 承载 pipx runtime
 - 做一次基础自检
 
 也可以显式执行：
@@ -40,8 +41,8 @@ npx qiaoya doctor
 runtime 安装后可直接调用：
 
 ```bash
-qiaoya public course-list --json
-qiaoya ai-news today --json
+~/.codex/skills/qiaoya/scripts/qiaoya public course-list --json
+~/.codex/skills/qiaoya/scripts/qiaoya ai-news today --json
 ```
 
 ## 欢迎页课程与 AI 日报
@@ -75,4 +76,4 @@ CI 会同时校验：
 - `node bin/qiaoya.js --help`
 - Python runtime pytest
 - `bash -n agent-harness/install.sh`
-- 本地 `pipx` 安装 runtime
+- skill bundle 内 runtime 安装校验

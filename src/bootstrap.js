@@ -97,14 +97,15 @@ async function main(argv = process.argv.slice(2), deps = {}) {
     skillSourceDir,
     force: resolved.options.force,
   });
-  logger.log(`Codex skill 已安装到 ${skillInstall.targetDir}`);
+  logger.log(`qiaoya skill bundle 已安装到 ${skillInstall.targetDir}`);
 
   const runtimeResult = await runtimeInstaller({
     runtimeSource: resolved.options.runtimeSource,
     cwd,
+    bundleDir: skillInstall.targetDir,
   });
 
-  logger.log('qiaoya runtime 已安装');
+  logger.log(`qiaoya runtime 已安装到 ${runtimeResult.scriptPath || path.join(skillInstall.targetDir, 'scripts', 'qiaoya')}`);
   if (runtimeResult && runtimeResult.runtimeCheck) {
     logger.log('runtime check: ok');
   }

@@ -22,7 +22,7 @@ function run(command, args, options = {}) {
   });
 }
 
-async function installRuntime({ runtimeSource = DEFAULT_RUNTIME_SPEC, cwd, env = process.env }) {
+async function installRuntime({ runtimeSource = DEFAULT_RUNTIME_SPEC, cwd, env = process.env, bundleDir }) {
   const python3 = commandExists('python3');
   const pipx = commandExists('pipx');
   if (!python3.ok) {
@@ -32,25 +32,28 @@ async function installRuntime({ runtimeSource = DEFAULT_RUNTIME_SPEC, cwd, env =
     throw new Error('缺少 pipx，无法安装 qiaoya runtime');
   }
 
-  let installed = '';
+  if (!bundleDir) {
+    throw new Error('缺少 skill bundle 目录，无法安装 runtime');
+  }
+
+  const runtimeHome = path.join(bundleDir, '.runtime');
+  const scriptsDir = path.join(bundleDir, 'scripts');
+  const installEnv = {
+    ...env,
+    PIPX_HOME: runtimeHome,
+    PIPX_BIN_DIR: scriptsDir,
+  };
+
   try {
-    installed = run('pipx', ['list', '--short'], { cwd, env, capture: true });
+    run('pipx', ['uninstall', PACKAGE_NAME], { cwd, env: installEnv });
   } catch {
-    installed = '';
+    // ignore
   }
 
-  if (installed.split('\n').some((line) => line.trim().startsWith(PACKAGE_NAME))) {
-    try {
-      run('pipx', ['uninstall', PACKAGE_NAME], { cwd, env });
-    } catch {
-      // ignore
-    }
-  }
-
-  run('pipx', ['install', runtimeSource], { cwd, env });
-  const qiaoyaCommand = env.PIPX_BIN_DIR ? path.join(env.PIPX_BIN_DIR, 'qiaoya') : 'qiaoya';
+  run('pipx', ['install', runtimeSource], { cwd, env: installEnv });
+  const qiaoyaCommand = path.join(scriptsDir, 'qiaoya');
   const helpOutput = run(qiaoyaCommand, ['--help'], { cwd, env, capture: true });
-  return { runtimeCheck: helpOutput };
+  return { runtimeCheck: helpOutput, scriptPath: qiaoyaCommand, runtimeHome };
 }
 
 async function getDoctorReport({
@@ -59,11 +62,13 @@ async function getDoctorReport({
   fs = require('node:fs'),
   path = require('node:path'),
 }) {
-  const skillPath = path.join(codexHome, 'skills', 'qiaoya', 'SKILL.md');
+  const bundleDir = path.join(codexHome, 'skills', 'qiaoya');
+  const skillPath = path.join(bundleDir, 'SKILL.md');
+  const scriptPath = path.join(bundleDir, 'scripts', 'qiaoya');
   let runtimeDetail = 'qiaoya not found';
   let runtimeOk = false;
   try {
-    runtimeDetail = run('qiaoya', ['--help'], { env, capture: true }).split('\n')[0];
+    runtimeDetail = run(scriptPath, ['--help'], { env, capture: true }).split('\n')[0];
     runtimeOk = true;
   } catch {
     runtimeOk = false;
@@ -73,6 +78,8 @@ async function getDoctorReport({
     python3: commandExists('python3'),
     pipx: commandExists('pipx'),
     codexHome: { ok: true, detail: codexHome },
+    skillBundle: { ok: fs.existsSync(bundleDir), detail: bundleDir },
+    script: { ok: fs.existsSync(scriptPath), detail: scriptPath },
     skill: { ok: fs.existsSync(skillPath), detail: skillPath },
     runtime: { ok: runtimeOk, detail: runtimeDetail },
   };

@@ -22,7 +22,7 @@ npx qiaoya
 - 根目录新增 npm bootstrap 包
 - `npx qiaoya` 默认执行安装流程
 - 安装 Codex skill 到 `~/.codex/skills/qiaoya`
-- 使用现有 Python runtime，并通过 `pipx` 安装或升级
+- 使用现有 Python runtime，并通过 bundle 内部 `pipx` 安装到 `scripts/`
 - 提供 `--help`、`install`、`doctor` 等最小命令面
 - 增加 Node 测试与 CI 校验
 
@@ -41,15 +41,15 @@ npx qiaoya
    现有 `agent-harness/` 下的 Python `qiaoya` CLI，继续负责 API 调用和 JSON 输出。
 
 2. **skill**
-   新增仓库内 `skills/qiaoya/SKILL.md`，描述何时调用 `qiaoya public course-list`、`qiaoya ai-news today` 等命令。
+   新增仓库内 `skills/qiaoya/SKILL.md`，描述何时调用 `~/.codex/skills/qiaoya/scripts/qiaoya ...`。
 
 3. **bootstrap**
    新增 npm 包，入口命令为 `qiaoya`。默认行为等同于 `qiaoya install`，负责：
    - 检测 Codex home
    - 安装/覆盖 skill 文件
    - 检测 `python3` 与 `pipx`
-   - 通过 `pipx install` 或 `pipx upgrade` 接入 runtime
-   - 执行 `qiaoya --help` 自检
+   - 通过 bundle 内 `.runtime/` + `scripts/` 安装 runtime
+   - 执行 `scripts/qiaoya --help` 自检
 
 ## CLI Design
 
@@ -84,8 +84,8 @@ npx qiaoya
 
 新增 Node 侧测试，覆盖：
 
-- skill 安装路径与文件复制
-- runtime 安装命令拼接
+- skill bundle 安装路径与文件复制
+- runtime 安装到 `scripts/` 的命令拼接
 - `doctor` 输出
 - CLI 帮助输出
 
