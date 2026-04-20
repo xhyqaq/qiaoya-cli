@@ -53,7 +53,13 @@ async function installRuntime({ runtimeSource = DEFAULT_RUNTIME_SPEC, cwd, env =
   run('pipx', ['install', runtimeSource], { cwd, env: installEnv });
   const qiaoyaCommand = path.join(scriptsDir, 'qiaoya');
   const helpOutput = run(qiaoyaCommand, ['--help'], { cwd, env, capture: true });
-  return { runtimeCheck: helpOutput, scriptPath: qiaoyaCommand, runtimeHome };
+  return {
+    runtimeCheck: helpOutput,
+    scriptPath: qiaoyaCommand,
+    runtimeHome,
+    source: runtimeSource,
+    mode: 'python-runtime',
+  };
 }
 
 async function getDoctorReport({
@@ -65,6 +71,8 @@ async function getDoctorReport({
   const bundleDir = path.join(codexHome, 'skills', 'qiaoya');
   const skillPath = path.join(bundleDir, 'SKILL.md');
   const scriptPath = path.join(bundleDir, 'scripts', 'qiaoya');
+  const versionPath = path.join(bundleDir, 'VERSION');
+  const metaPath = path.join(bundleDir, 'install-meta.json');
   let runtimeDetail = 'qiaoya not found';
   let runtimeOk = false;
   try {
@@ -81,6 +89,8 @@ async function getDoctorReport({
     skillBundle: { ok: fs.existsSync(bundleDir), detail: bundleDir },
     script: { ok: fs.existsSync(scriptPath), detail: scriptPath },
     skill: { ok: fs.existsSync(skillPath), detail: skillPath },
+    version: { ok: fs.existsSync(versionPath), detail: versionPath },
+    installMeta: { ok: fs.existsSync(metaPath), detail: metaPath },
     runtime: { ok: runtimeOk, detail: runtimeDetail },
   };
 }

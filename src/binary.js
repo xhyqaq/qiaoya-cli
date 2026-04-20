@@ -1,8 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const https = require('node:https');
+const { execFileSync } = require('node:child_process');
 
 const DEFAULT_RELEASE_BASE_URL = 'https://github.com/xhyqaq/qiaoya-cli/releases/download';
+const DEFAULT_RELEASE_LATEST_BASE_URL = 'https://github.com/xhyqaq/qiaoya-cli/releases/latest/download';
 
 function getPlatformTarget({ platform = process.platform, arch = process.arch } = {}) {
   const platformMap = {
@@ -37,6 +39,29 @@ function copyExecutable(sourcePath, targetPath) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.copyFileSync(sourcePath, targetPath);
   fs.chmodSync(targetPath, 0o755);
+}
+
+function runBinaryHelp(scriptPath) {
+  return execFileSync(scriptPath, ['--help'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+function isRemoteSource(value) {
+  return typeof value === 'string' && /^https?:\/\//i.test(value);
+}
+
+function buildReleaseDownloadUrl({
+  releaseBaseUrl = DEFAULT_RELEASE_BASE_URL,
+  latestBaseUrl = DEFAULT_RELEASE_LATEST_BASE_URL,
+  version = 'latest',
+  assetName,
+}) {
+  if (version === 'latest') {
+    return `${latestBaseUrl}/${assetName}`;
+  }
+  return `${releaseBaseUrl}/${version}/${assetName}`;
 }
 
 function downloadToFile(url, targetPath) {
@@ -78,19 +103,44 @@ async function installBinaryRuntime({
   const targetPath = path.join(scriptsDir, targetName);
 
   if (binarySource) {
+    if (isRemoteSource(binarySource)) {
+      await downloadToFile(binarySource, targetPath);
+      return {
+        scriptPath: targetPath,
+        source: binarySource,
+        mode: 'remote-binary',
+        runtimeCheck: runBinaryHelp(targetPath),
+      };
+    }
     copyExecutable(binarySource, targetPath);
-    return { scriptPath: targetPath, source: binarySource, mode: 'local-binary' };
+    return {
+      scriptPath: targetPath,
+      source: binarySource,
+      mode: 'local-binary',
+      runtimeCheck: runBinaryHelp(targetPath),
+    };
   }
 
   const assetName = getBinaryFileName({ platform, arch });
-  const downloadUrl = `${releaseBaseUrl}/${version}/${assetName}`;
+  const downloadUrl = buildReleaseDownloadUrl({
+    releaseBaseUrl,
+    version,
+    assetName,
+  });
   await downloadToFile(downloadUrl, targetPath);
-  return { scriptPath: targetPath, source: downloadUrl, mode: 'remote-binary' };
+  return {
+    scriptPath: targetPath,
+    source: downloadUrl,
+    mode: 'remote-binary',
+    runtimeCheck: runBinaryHelp(targetPath),
+  };
 }
 
 module.exports = {
   DEFAULT_RELEASE_BASE_URL,
+  DEFAULT_RELEASE_LATEST_BASE_URL,
   getPlatformTarget,
   getBinaryFileName,
+  buildReleaseDownloadUrl,
   installBinaryRuntime,
 };

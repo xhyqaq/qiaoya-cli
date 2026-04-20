@@ -21,7 +21,8 @@ npx qiaoya
 
 - 安装 Codex skill bundle 到 `~/.codex/skills/qiaoya`
 - 把 runtime 放进 `~/.codex/skills/qiaoya/scripts/qiaoya`
-- 用 skill bundle 内部的 `.runtime/` 承载 pipx runtime
+- `auto` 模式下优先尝试 GitHub Release 二进制，失败再回退到 Python runtime
+- Python 回退时，用 skill bundle 内部的 `.runtime/` 承载 pipx runtime
 - 做一次基础自检
 
 也可以显式执行：
@@ -31,7 +32,7 @@ npx qiaoya install
 npx qiaoya doctor
 ```
 
-二进制模式骨架已经接好，但当前默认仍保留 Python runtime 路径。显式指定时可以把单文件二进制放进 skill bundle：
+显式指定时可以把单文件二进制放进 skill bundle：
 
 ```bash
 npx qiaoya install --runtime-kind binary --binary-source /path/to/qiaoya-binary
@@ -49,6 +50,13 @@ npx qiaoya install --runtime-kind binary --binary-source /path/to/qiaoya-binary
 ```text
 ~/.codex/skills/qiaoya/scripts/qiaoya
 ```
+
+现在 `auto` 模式已经会优先尝试下载最新 release 资产：
+
+- `qiaoya-darwin-arm64`
+- `qiaoya-darwin-x64`
+- `qiaoya-linux-x64`
+- `qiaoya-windows-x64.exe`
 
 runtime 安装后可直接调用：
 
@@ -72,7 +80,16 @@ Node bootstrap：
 npm test
 node bin/qiaoya.js --help
 node bin/qiaoya.js install --runtime-kind binary --binary-source /tmp/qiaoya-binary
+node bin/qiaoya.js install --runtime-source ./agent-harness
 ```
+
+## Release
+
+仓库已经提供二进制发布工作流 [release-binaries.yml](./.github/workflows/release-binaries.yml)：
+
+- 推送 `v*` tag 时自动构建多平台 binary
+- 产物命名与 bootstrap 下载规则一致
+- 上传到 GitHub Release 供 `auto/binary` 模式消费
 
 Python runtime：
 

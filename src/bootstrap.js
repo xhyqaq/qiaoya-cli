@@ -1,9 +1,11 @@
 const os = require('node:os');
 const path = require('node:path');
+const fs = require('node:fs');
 
 const { installCodexSkill } = require('./installers/codex');
 const { installRuntime, getDoctorReport, DEFAULT_RUNTIME_SPEC } = require('./runtime');
 const { installBinaryRuntime } = require('./binary');
+const { version: packageVersion } = require('../package.json');
 
 function printHelp(logger) {
   logger.log(`qiaoya agent bootstrap
@@ -78,6 +80,30 @@ function printDoctorReport(report, logger) {
   });
 }
 
+function writeBundleMetadata(bundleDir, runtimeResult) {
+  const versionPath = path.join(bundleDir, 'VERSION');
+  const metaPath = path.join(bundleDir, 'install-meta.json');
+  fs.writeFileSync(versionPath, `${packageVersion}\n`, 'utf8');
+  fs.writeFileSync(
+    metaPath,
+    JSON.stringify(
+      {
+        packageVersion,
+        installedAt: new Date().toISOString(),
+        runtime: {
+          mode: runtimeResult.mode || 'python-runtime',
+          source: runtimeResult.source || null,
+          scriptPath: runtimeResult.scriptPath || null,
+          runtimeHome: runtimeResult.runtimeHome || null,
+        },
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+}
+
 async function main(argv = process.argv.slice(2), deps = {}) {
   const logger = deps.logger || console;
   const cwd = deps.cwd || process.cwd();
@@ -115,18 +141,31 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   const runtimeKind = resolved.options.runtimeKind;
   const binaryRequested = runtimeKind === 'binary' || (runtimeKind === 'auto' && !!resolved.options.binarySource);
 
-  if (binaryRequested) {
-    runtimeResult = await binaryInstaller({
-      bundleDir: skillInstall.targetDir,
-      binarySource: resolved.options.binarySource || undefined,
-    });
-  } else {
+  if (binaryRequested || runtimeKind === 'auto') {
+    try {
+      runtimeResult = await binaryInstaller({
+        bundleDir: skillInstall.targetDir,
+        binarySource: resolved.options.binarySource || undefined,
+      });
+      logger.log('binary runtime 安装成功');
+    } catch (error) {
+      if (runtimeKind === 'binary') {
+        throw error;
+      }
+      logger.log(`binary runtime 安装失败，回退到 python runtime: ${error.message}`);
+    }
+  }
+
+  if (!runtimeResult) {
     runtimeResult = await runtimeInstaller({
       runtimeSource: resolved.options.runtimeSource,
       cwd,
       bundleDir: skillInstall.targetDir,
     });
+    logger.log('python runtime 安装成功');
   }
+
+  writeBundleMetadata(skillInstall.targetDir, runtimeResult);
 
   logger.log(`qiaoya runtime 已安装到 ${runtimeResult.scriptPath || path.join(skillInstall.targetDir, 'scripts', 'qiaoya')}`);
   if (runtimeResult && runtimeResult.runtimeCheck) {

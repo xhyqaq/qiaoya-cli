@@ -7,6 +7,7 @@ const path = require('node:path');
 const {
   getPlatformTarget,
   getBinaryFileName,
+  buildReleaseDownloadUrl,
   installBinaryRuntime,
 } = require('../src/binary');
 
@@ -23,6 +24,14 @@ test('platform target maps current platform tuple', () => {
 test('binary file name uses platform target and qiaoya basename', () => {
   const name = getBinaryFileName({ platform: 'win32', arch: 'x64' });
   assert.equal(name, 'qiaoya-windows-x64.exe');
+});
+
+test('release download url uses latest alias when version is latest', () => {
+  const url = buildReleaseDownloadUrl({
+    assetName: 'qiaoya-darwin-arm64',
+    version: 'latest',
+  });
+  assert.equal(url, 'https://github.com/xhyqaq/qiaoya-cli/releases/latest/download/qiaoya-darwin-arm64');
 });
 
 test('installBinaryRuntime copies local binary into bundle scripts path', async () => {
@@ -43,4 +52,5 @@ test('installBinaryRuntime copies local binary into bundle scripts path', async 
   assert.equal(result.scriptPath, path.join(scriptsDir, 'qiaoya'));
   assert.equal(fs.existsSync(result.scriptPath), true);
   assert.match(fs.readFileSync(result.scriptPath, 'utf8'), /qiaoya-binary/);
+  assert.match(result.runtimeCheck, /qiaoya-binary/);
 });
