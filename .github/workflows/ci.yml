@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   agent-harness:
     runs-on: ubuntu-latest
@@ -70,7 +73,6 @@ jobs:
         env:
           PIPX_HOME: ${{ runner.temp }}/pipx-home-bootstrap
           PIPX_BIN_DIR: ${{ runner.temp }}/pipx-bin-bootstrap
-          PATH: ${{ runner.temp }}/pipx-bin-bootstrap:${{ env.PATH }}
         run: |
           node bin/qiaoya.js install --codex-home "${RUNNER_TEMP}/codex-home" --runtime-source ./agent-harness
           test -f "${RUNNER_TEMP}/codex-home/skills/qiaoya/SKILL.md"
