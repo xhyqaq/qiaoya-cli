@@ -16,4 +16,4 @@ Prefer the local runtime:
 ~/.qiaoya/bin/qiaoya auth status
 ```
 
-Do not ask for passwords, tokens, or cookies. Only use `qiaoya auth login` when the user explicitly agrees to browser authorization. Do not perform write/delete/publish/comment/chat actions unless the user explicitly asks and the runtime provides a confirmation flow.
+Do not ask for passwords, tokens, or cookies. If a requested task needs authenticated data and `qiaoya --json auth status` shows the user is not logged in, run `qiaoya auth login` yourself and let the user complete authorization in the browser. Do not ask the user to copy the command. Do not perform write/delete/publish/comment/chat actions unless the user explicitly asks and the runtime provides a confirmation flow.

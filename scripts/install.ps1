@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$ReleaseBaseUrl = if ($env:QIAOYA_RELEASE_BASE_URL) { $env:QIAOYA_RELEASE_BASE_URL } else { "https://github.com/xhyqaq/qiaoya-cli/releases/latest/download" }
+$ReleaseBaseUrl = if ($env:QIAOYA_RELEASE_BASE_URL) { $env:QIAOYA_RELEASE_BASE_URL } else { "https://code.xhyovo.cn/downloads/qiaoya/latest" }
 $Agents = if ($env:QIAOYA_AGENTS) { $env:QIAOYA_AGENTS } else { "auto" }
 $ProjectDir = if ($env:QIAOYA_PROJECT_DIR) { $env:QIAOYA_PROJECT_DIR } else { "" }
 
@@ -52,4 +52,3 @@ try {
 } finally {
   Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
 }
-

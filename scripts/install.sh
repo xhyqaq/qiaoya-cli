@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-RELEASE_BASE_URL="${QIAOYA_RELEASE_BASE_URL:-https://github.com/xhyqaq/qiaoya-cli/releases/latest/download}"
+RELEASE_BASE_URL="${QIAOYA_RELEASE_BASE_URL:-https://code.xhyovo.cn/downloads/qiaoya/latest}"
 AGENTS="${QIAOYA_AGENTS:-auto}"
 PROJECT_DIR="${QIAOYA_PROJECT_DIR:-}"
 
@@ -92,4 +92,3 @@ main() {
 }
 
 main "$@"
-
