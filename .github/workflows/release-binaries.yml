@@ -144,9 +144,10 @@ jobs:
         run: |
           port="${DEPLOY_PORT:-22}"
           remote_root="${DEPLOY_ROOT:-/www/wwwroot/code.xhyovo.cn/downloads/qiaoya}"
+          cp scripts/install.sh flattened/install.sh
+          tar -C flattened -czf "qiaoya-release-${VERSION}.tar.gz" .
           ssh -i ~/.ssh/qiaoya_deploy_key -p "$port" "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$remote_root/incoming/$VERSION'"
-          scp -O -i ~/.ssh/qiaoya_deploy_key -P "$port" flattened/* "$DEPLOY_USER@$DEPLOY_HOST:$remote_root/incoming/$VERSION/"
-          scp -O -i ~/.ssh/qiaoya_deploy_key -P "$port" scripts/install.sh "$DEPLOY_USER@$DEPLOY_HOST:$remote_root/incoming/$VERSION/install.sh"
+          scp -O -i ~/.ssh/qiaoya_deploy_key -P "$port" "qiaoya-release-${VERSION}.tar.gz" "$DEPLOY_USER@$DEPLOY_HOST:$remote_root/incoming/$VERSION/release.tar.gz"
 
       - name: Publish server assets
         if: steps.deploy-check.outputs.enabled == 'true'
@@ -156,6 +157,8 @@ jobs:
           ssh -i ~/.ssh/qiaoya_deploy_key -p "$port" "$DEPLOY_USER@$DEPLOY_HOST" "REMOTE_ROOT='$remote_root' VERSION='$VERSION' bash -s" <<'REMOTE'
           set -euo pipefail
           cd "$REMOTE_ROOT/incoming/$VERSION"
+          tar -xzf release.tar.gz
+          rm -f release.tar.gz
           sha256sum -c checksums.txt
           mkdir -p "$REMOTE_ROOT/releases/$VERSION" "$REMOTE_ROOT/latest"
           cp -f qiaoya-* checksums.txt install.sh "$REMOTE_ROOT/releases/$VERSION/"
