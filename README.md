@@ -1,111 +1,133 @@
 # qiaoya-cli
 
-面向 agent 的敲鸭社区 bootstrap 仓库。
+敲鸭社区 Go 版 agent skill 安装器与公开信息 runtime。
 
-这个仓库现在分成两层：
-
-- `agent-harness/`
-  Python runtime，负责真实 API 调用
-- 根目录 npm bootstrap
-  负责 `npx qiaoya` 安装 Codex skill bundle 和 runtime
-
-## Agent-First 用法
-
-推荐入口：
+目标体验：
 
 ```bash
-npx qiaoya
+curl -fsSL https://code.xhyovo.cn/install | sh
 ```
 
-它会做这些事：
+用户执行一行命令后，安装器会把敲鸭社区能力写入常用 AI agent 的 skill/rules 目录。之后用户直接在 Codex、Claude Code、Cursor、Windsurf、OpenClaw 里对话即可了解社区。
 
-- 安装 Codex skill bundle 到 `~/.codex/skills/qiaoya`
-- 把 runtime 放进 `~/.codex/skills/qiaoya/scripts/qiaoya`
-- `auto` 模式下优先尝试 GitHub Release 二进制，失败再回退到 Python runtime
-- Python 回退时，用 skill bundle 内部的 `.runtime/` 承载 pipx runtime
-- 做一次基础自检
+## 主链路
 
-也可以显式执行：
+`qiaoya` 是一个单文件 Go binary，同时负责：
+
+- 安装 skill/rules：`qiaoya install`
+- 自检：`qiaoya doctor`
+- 卸载：`qiaoya uninstall`
+- 提示更新：`qiaoya update`
+- 浏览器授权登录：`qiaoya auth login`
+- 查询公开信息：`qiaoya --json public overview`
+- 查询课程：`qiaoya --json public courses`
+- 查询 AI 日报：`qiaoya --json ai-news today`
+
+普通用户不需要 Node、Python、pipx、npm 或 npx。安装脚本只依赖系统自带 shell、curl 和 SHA256 校验命令。
+
+## 支持的 Agent
+
+默认安装：
 
 ```bash
-npx qiaoya install
-npx qiaoya doctor
+qiaoya install --agents auto
 ```
 
-显式指定时可以把单文件二进制放进 skill bundle：
-
-```bash
-npx qiaoya install --runtime-kind binary --binary-source /path/to/qiaoya-binary
-```
-
-## Runtime 说明
-
-当前 bootstrap 安装的是现有 Python runtime，所以目前仍然需要：
-
-- `python3`
-- `pipx`
-
-后续如果 GitHub Releases 提供了平台二进制，`binary` 模式会把对应文件安装到：
+写入位置：
 
 ```text
-~/.codex/skills/qiaoya/scripts/qiaoya
+Codex        ~/.codex/skills/qiaoya/SKILL.md
+Claude Code  ~/.claude/skills/qiaoya/SKILL.md
+OpenClaw     ~/.openclaw/skills/qiaoya/SKILL.md
+Cursor       <project>/.cursor/rules/qiaoya.mdc
+Windsurf     ~/.codeium/windsurf/memories/global_rules.md
+Windsurf     <project>/.windsurf/rules/qiaoya.md
 ```
 
-现在 `auto` 模式已经会优先尝试下载最新 release 资产：
-
-- `qiaoya-darwin-arm64`
-- `qiaoya-darwin-x64`
-- `qiaoya-linux-x64`
-- `qiaoya-windows-x64.exe`
-
-如果最新 release 资产还没发布完成，安装器会明确提示 `release 二进制资产尚未就绪`，随后自动回退到 Python runtime；这不影响当前 skill bundle 的可用性。
-
-runtime 安装后可直接调用：
+Cursor 是项目级 rules。Windsurf 会写入全局规则；如果检测到项目目录，也会同时写入工作区规则。若要显式安装项目规则：
 
 ```bash
-~/.codex/skills/qiaoya/scripts/qiaoya public course-list --json
-~/.codex/skills/qiaoya/scripts/qiaoya ai-news today --json
+qiaoya install --agents cursor,windsurf --project-dir /path/to/project
 ```
 
-## 欢迎页课程与 AI 日报
+## 安装脚本
 
-这是当前 skill 的两个高价值入口：
+macOS / Linux：
 
-- 欢迎页课程：让 agent 总结有哪些课程、哪些适合 AI 深度使用者
-- AI 日报：让 agent 总结今日/往期 AI 资讯
+```bash
+curl -fsSL https://code.xhyovo.cn/install | sh
+```
+
+Windows PowerShell：
+
+```powershell
+irm https://code.xhyovo.cn/install.ps1 | iex
+```
+
+脚本会：
+
+1. 识别系统和 CPU 架构
+2. 下载对应 `qiaoya-*` 单文件 binary
+3. 下载并校验 `checksums.txt`
+4. 运行 `qiaoya install --agents auto`
+5. 把 runtime 固定安装到 `~/.qiaoya/bin/qiaoya`
+
+可选环境变量：
+
+```bash
+QIAOYA_RELEASE_BASE_URL=https://github.com/xhyqaq/qiaoya-cli/releases/latest/download
+QIAOYA_AGENTS=codex,claude,cursor,windsurf,openclaw
+QIAOYA_PROJECT_DIR=/path/to/project
+```
+
+## 登录设计
+
+登录态能力走浏览器授权，不让 AI 或 CLI 直接接触用户密码。
+
+1. CLI 执行 `qiaoya auth login`
+2. CLI 在本机随机打开一个临时 callback 端口，例如 `http://127.0.0.1:<port>/callback`
+3. CLI 生成 `state`、PKCE `code_verifier/code_challenge`
+4. CLI 打开敲鸭现有授权链接，例如 `https://code.xhyovo.cn/api/public/oauth2/authorize?...`
+5. 用户在浏览器里使用已有敲鸭账号登录；如果已经登录，直接进入授权确认页
+6. 用户确认授权后，网站把一次性授权码重定向回本机 callback
+7. CLI 校验 `state`，再用授权码和 `code_verifier` 换取短期、低权限 token，并存到本机安全位置
+
+常用命令：
+
+```bash
+qiaoya auth login
+qiaoya auth status
+qiaoya auth logout
+```
+
+Access Token 默认短期有效，Refresh Token 默认长期有效。CLI 会在登录态命令执行前自动刷新 Access Token；只有 Refresh Token 也失效或被撤销时，用户才需要重新执行 `qiaoya auth login`。
+
+无论哪种方案，skill 都不应该要求邮箱、密码、token 或 Cookie。登录态能力默认按 scope 授权，并对写操作继续要求用户确认。
+
+社区项目已经有 `/oauth2/authorize` 授权页和 `/api/public/oauth2/token` 令牌端点。`qiaoya-cli` 注册为 public OAuth2 client，使用 `client_authentication_method=none + PKCE`，CLI 不内置 `client_secret`。CLI 本机 callback 使用随机端口，因此后端 redirect URI 校验只允许 `127.0.0.1` 或 `localhost` 加固定 path，端口允许变化。
 
 ## 开发
 
-Node bootstrap：
-
 ```bash
-npm test
-node bin/qiaoya.js --help
-node bin/qiaoya.js install --runtime-kind binary --binary-source /tmp/qiaoya-binary
-node bin/qiaoya.js install --runtime-source ./agent-harness
+go test ./...
+go vet ./...
+go build -o /tmp/qiaoya ./cmd/qiaoya
+/tmp/qiaoya --help
+/tmp/qiaoya install --dry-run --agents all --project-dir "$PWD"
 ```
 
 ## Release
 
-仓库已经提供二进制发布工作流 [release-binaries.yml](./.github/workflows/release-binaries.yml)：
+推送 `v*` tag 或手动触发 `.github/workflows/release-binaries.yml` 会构建：
 
-- 推送 `v*` tag 时自动构建多平台 binary
-- 产物命名与 bootstrap 下载规则一致
-- 上传到 GitHub Release 供 `auto/binary` 模式消费
-
-Python runtime：
-
-```bash
-cd agent-harness
-pytest cli_anything/qiaoya/tests/test_core.py cli_anything/qiaoya/tests/test_full_e2e.py -q
+```text
+qiaoya-darwin-arm64
+qiaoya-darwin-amd64
+qiaoya-linux-amd64
+qiaoya-linux-arm64
+qiaoya-windows-amd64.exe
+qiaoya-windows-arm64.exe
+checksums.txt
 ```
 
-## CI
-
-CI 会同时校验：
-
-- Node bootstrap 测试
-- `node bin/qiaoya.js --help`
-- Python runtime pytest
-- `bash -n agent-harness/install.sh`
-- skill bundle 内 runtime 安装校验
+安装脚本默认从 GitHub Release `latest/download` 下载这些资产。后续如果要使用自有域名或 CDN，只需要让 `https://code.xhyovo.cn/install` 返回 `scripts/install.sh`，并把 release asset 反代或同步到稳定地址。
