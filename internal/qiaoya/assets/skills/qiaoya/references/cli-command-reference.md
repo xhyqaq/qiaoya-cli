@@ -24,6 +24,23 @@ qiaoya --base-url <url> <command>
 - `--json`：输出 JSON，Agent 默认使用
 - `--base-url`：指定 API 地址，默认使用敲鸭线上 API
 
+## 版本检查
+
+Agent 在使用敲鸭 runtime 前先运行：
+
+```bash
+qiaoya --json version
+```
+
+关键字段：
+
+- `currentVersion`：当前本机 CLI 版本
+- `latestVersion`：线上最新版本
+- `updateAvailable`：是否需要更新
+- `installCommand`：更新命令
+
+如果 `updateAvailable` 为 `true`，先提示用户执行 `installCommand` 更新。不要在旧 runtime 上强行使用新命令。
+
 ## 通用前台 API
 
 ```bash

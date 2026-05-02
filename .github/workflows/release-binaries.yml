@@ -62,9 +62,21 @@ jobs:
           ./dist/qiaoya-linux-amd64 --help
 
       - name: Generate checksums
+        env:
+          VERSION: ${{ github.event.inputs.tag_name || github.ref_name }}
+          COMMIT: ${{ github.sha }}
         run: |
           cd dist
           sha256sum qiaoya-* > checksums.txt
+          cat > version.json <<EOF
+          {
+            "version": "${VERSION}",
+            "commit": "${COMMIT}",
+            "date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "downloadBaseUrl": "https://code.xhyovo.cn/downloads/qiaoya/latest",
+            "installCommand": "curl -fsSL https://code.xhyovo.cn/install | sh"
+          }
+          EOF
 
       - name: Upload assets artifact
         uses: actions/upload-artifact@v4
@@ -161,11 +173,11 @@ jobs:
           rm -f release.tar.gz
           sha256sum -c checksums.txt
           mkdir -p "$REMOTE_ROOT/releases/$VERSION" "$REMOTE_ROOT/latest"
-          cp -f qiaoya-* checksums.txt install.sh "$REMOTE_ROOT/releases/$VERSION/"
-          cp -f qiaoya-* checksums.txt "$REMOTE_ROOT/latest/"
+          cp -f qiaoya-* checksums.txt version.json install.sh "$REMOTE_ROOT/releases/$VERSION/"
+          cp -f qiaoya-* checksums.txt version.json "$REMOTE_ROOT/latest/"
           cp -f install.sh "$REMOTE_ROOT/install.sh"
           chmod 755 "$REMOTE_ROOT/releases/$VERSION"/qiaoya-* "$REMOTE_ROOT/latest"/qiaoya-* "$REMOTE_ROOT/install.sh"
-          chmod 644 "$REMOTE_ROOT/releases/$VERSION"/checksums.txt "$REMOTE_ROOT/latest"/checksums.txt "$REMOTE_ROOT/releases/$VERSION"/install.sh
+          chmod 644 "$REMOTE_ROOT/releases/$VERSION"/checksums.txt "$REMOTE_ROOT/releases/$VERSION"/version.json "$REMOTE_ROOT/latest"/checksums.txt "$REMOTE_ROOT/latest"/version.json "$REMOTE_ROOT/releases/$VERSION"/install.sh
           if id www >/dev/null 2>&1; then
             chown -R www:www "$REMOTE_ROOT/releases/$VERSION" "$REMOTE_ROOT/latest" "$REMOTE_ROOT/install.sh"
           fi
@@ -177,3 +189,4 @@ jobs:
         run: |
           curl -fsSL https://code.xhyovo.cn/install | head -n 5
           curl -fsI https://code.xhyovo.cn/downloads/qiaoya/latest/checksums.txt
+          curl -fsSL https://code.xhyovo.cn/downloads/qiaoya/latest/version.json

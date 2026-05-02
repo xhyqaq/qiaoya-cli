@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xhyqaq/qiaoya-cli/internal/qiaoya/auth"
+	"github.com/xhyqaq/qiaoya-cli/internal/qiaoya/metadata"
 )
 
 func TestHelpMentionsPublicCommands(t *testing.T) {
@@ -27,13 +28,62 @@ func TestHelpMentionsPublicCommands(t *testing.T) {
 }
 
 func TestUpdatePrintsInstallCommand(t *testing.T) {
+	restoreVersion := setTestVersion("v1.0.0")
+	defer restoreVersion()
+
+	server := versionManifestServer(t, map[string]any{
+		"version":        "v1.0.1",
+		"commit":         "latest-commit",
+		"date":           "2026-05-02T00:00:00Z",
+		"installCommand": "curl -fsSL https://code.xhyovo.cn/install | sh",
+	})
+	defer server.Close()
+
 	var out bytes.Buffer
-	code := New(&out, &bytes.Buffer{}).Run([]string{"update"})
+	code := New(&out, &bytes.Buffer{}).Run([]string{"--base-url", server.URL, "update"})
 	if code != 0 {
 		t.Fatalf("Run update code = %d", code)
 	}
-	if !strings.Contains(out.String(), "curl -fsSL") {
+	if !strings.Contains(out.String(), "v1.0.1") || !strings.Contains(out.String(), "curl -fsSL") {
 		t.Fatalf("update output missing command: %s", out.String())
+	}
+}
+
+func TestVersionJSONReportsUpdateAvailability(t *testing.T) {
+	restoreVersion := setTestVersion("v1.0.0")
+	defer restoreVersion()
+
+	server := versionManifestServer(t, map[string]any{
+		"version":        "v1.2.0",
+		"commit":         "latest-commit",
+		"date":           "2026-05-02T00:00:00Z",
+		"installCommand": "curl -fsSL https://code.xhyovo.cn/install | sh",
+	})
+	defer server.Close()
+
+	var out bytes.Buffer
+	code := New(&out, &bytes.Buffer{}).Run([]string{"--json", "--base-url", server.URL, "version"})
+	if code != 0 {
+		t.Fatalf("version code = %d, output:\n%s", code, out.String())
+	}
+	var report versionReport
+	if err := json.Unmarshal(out.Bytes(), &report); err != nil {
+		t.Fatalf("decode version report: %v\n%s", err, out.String())
+	}
+	if !report.UpdateAvailable || report.LatestVersion != "v1.2.0" || report.CurrentVersion != "v1.0.0" {
+		t.Fatalf("unexpected version report: %#v", report)
+	}
+}
+
+func TestCompareVersions(t *testing.T) {
+	if compareVersions("v1.10.0", "v1.9.9") <= 0 {
+		t.Fatal("expected v1.10.0 > v1.9.9")
+	}
+	if compareVersions("v1.0.0", "v1.0.1") >= 0 {
+		t.Fatal("expected v1.0.0 < v1.0.1")
+	}
+	if compareVersions("dev", "v1.0.1") != 0 {
+		t.Fatal("dev should not be treated as comparable")
 	}
 }
 
@@ -158,4 +208,32 @@ func TestWriteMethodsRequireWriteScope(t *testing.T) {
 	if hasScope("openid profile email read", "write") {
 		t.Fatal("read-only token should not satisfy write scope")
 	}
+}
+
+func setTestVersion(version string) func() {
+	oldVersion := metadata.Version
+	oldCommit := metadata.Commit
+	oldDate := metadata.Date
+	metadata.Version = version
+	metadata.Commit = "test-commit"
+	metadata.Date = "2026-05-02T00:00:00Z"
+	return func() {
+		metadata.Version = oldVersion
+		metadata.Commit = oldCommit
+		metadata.Date = oldDate
+	}
+}
+
+func versionManifestServer(t *testing.T, manifest map[string]any) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/downloads/qiaoya/latest/version.json" {
+			http.Error(w, "missing", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(manifest); err != nil {
+			t.Fatalf("encode manifest: %v", err)
+		}
+	}))
 }

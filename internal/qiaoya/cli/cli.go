@@ -6,7 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +34,26 @@ type apiCommandOptions struct {
 	Body     string
 	BodyFile string
 	NoLogin  bool
+}
+
+type versionReport struct {
+	CurrentVersion  string `json:"currentVersion"`
+	CurrentCommit   string `json:"currentCommit"`
+	CurrentDate     string `json:"currentDate"`
+	LatestVersion   string `json:"latestVersion,omitempty"`
+	LatestCommit    string `json:"latestCommit,omitempty"`
+	LatestDate      string `json:"latestDate,omitempty"`
+	UpdateAvailable bool   `json:"updateAvailable"`
+	InstallCommand  string `json:"installCommand"`
+	CheckError      string `json:"checkError,omitempty"`
+}
+
+type latestVersionManifest struct {
+	Version         string `json:"version"`
+	Commit          string `json:"commit,omitempty"`
+	Date            string `json:"date,omitempty"`
+	DownloadBaseURL string `json:"downloadBaseUrl,omitempty"`
+	InstallCommand  string `json:"installCommand,omitempty"`
 }
 
 func New(stdout, stderr io.Writer) App {
@@ -60,8 +82,7 @@ func (a App) Run(args []string) int {
 		a.printHelp()
 		return 0
 	case "version", "--version":
-		fmt.Fprintf(a.Stdout, "qiaoya %s (%s %s)\n", metadata.Version, metadata.Commit, metadata.Date)
-		return 0
+		return a.runVersion(rest[1:], globals)
 	case "install":
 		return a.runInstall(rest[1:], globals)
 	case "auth":
@@ -126,6 +147,7 @@ Usage:
   qiaoya auth login
   qiaoya auth status
   qiaoya auth logout
+  qiaoya --json version
   qiaoya uninstall [--agents auto|all|...]
   qiaoya --json public overview
   qiaoya --json public courses
@@ -307,16 +329,127 @@ func (a App) runUninstall(args []string, globals globalOptions) int {
 	return a.printResults(results, globals.JSON)
 }
 
-func (a App) runUpdate(_ []string, globals globalOptions) int {
-	message := map[string]string{
-		"message": "请重新执行一行安装命令完成更新",
-		"command": "curl -fsSL " + metadata.DefaultInstallURL + " | sh",
-	}
+func (a App) runVersion(_ []string, globals globalOptions) int {
 	if globals.JSON {
-		return a.printJSON(message)
+		return a.printJSON(buildVersionReport(globals))
 	}
-	fmt.Fprintf(a.Stdout, "%s:\n  %s\n", message["message"], message["command"])
+	fmt.Fprintf(a.Stdout, "qiaoya %s (%s %s)\n", metadata.Version, metadata.Commit, metadata.Date)
 	return 0
+}
+
+func (a App) runUpdate(_ []string, globals globalOptions) int {
+	report := buildVersionReport(globals)
+	if globals.JSON {
+		return a.printJSON(report)
+	}
+	if report.CheckError != "" {
+		fmt.Fprintf(a.Stdout, "无法检查最新版本: %s\n", report.CheckError)
+		fmt.Fprintf(a.Stdout, "可以重新执行一行安装命令完成更新:\n  %s\n", report.InstallCommand)
+		return 0
+	}
+	if report.UpdateAvailable {
+		fmt.Fprintf(a.Stdout, "发现新版本 %s，当前版本 %s。\n", report.LatestVersion, report.CurrentVersion)
+		fmt.Fprintf(a.Stdout, "更新命令:\n  %s\n", report.InstallCommand)
+		return 0
+	}
+	fmt.Fprintf(a.Stdout, "当前已是最新版本: %s\n", report.CurrentVersion)
+	return 0
+}
+
+func buildVersionReport(globals globalOptions) versionReport {
+	report := versionReport{
+		CurrentVersion: metadata.Version,
+		CurrentCommit:  metadata.Commit,
+		CurrentDate:    metadata.Date,
+		InstallCommand: "curl -fsSL " + metadata.DefaultInstallURL + " | sh",
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	latest, err := fetchLatestVersion(ctx, globals.BaseURL)
+	if err != nil {
+		report.CheckError = err.Error()
+		return report
+	}
+	report.LatestVersion = latest.Version
+	report.LatestCommit = latest.Commit
+	report.LatestDate = latest.Date
+	if strings.TrimSpace(latest.InstallCommand) != "" {
+		report.InstallCommand = strings.TrimSpace(latest.InstallCommand)
+	}
+	report.UpdateAvailable = compareVersions(latest.Version, metadata.Version) > 0
+	return report
+}
+
+func fetchLatestVersion(ctx context.Context, baseURL string) (latestVersionManifest, error) {
+	endpoint := strings.TrimRight(baseURL, "/") + "/downloads/qiaoya/latest/version.json"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return latestVersionManifest{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return latestVersionManifest{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return latestVersionManifest{}, fmt.Errorf("版本检查失败: HTTP %d", resp.StatusCode)
+	}
+	var latest latestVersionManifest
+	if err := json.NewDecoder(resp.Body).Decode(&latest); err != nil {
+		return latestVersionManifest{}, fmt.Errorf("解析 version.json 失败: %w", err)
+	}
+	if strings.TrimSpace(latest.Version) == "" {
+		return latestVersionManifest{}, fmt.Errorf("version.json 缺少 version")
+	}
+	return latest, nil
+}
+
+func compareVersions(left, right string) int {
+	leftParts, leftOK := parseVersionParts(left)
+	rightParts, rightOK := parseVersionParts(right)
+	if !leftOK || !rightOK {
+		return 0
+	}
+	for i := 0; i < len(leftParts); i++ {
+		if leftParts[i] > rightParts[i] {
+			return 1
+		}
+		if leftParts[i] < rightParts[i] {
+			return -1
+		}
+	}
+	return 0
+}
+
+func parseVersionParts(value string) ([3]int, bool) {
+	var parts [3]int
+	value = strings.TrimSpace(strings.TrimPrefix(value, "v"))
+	if value == "" || value == "dev" {
+		return parts, false
+	}
+	clean := value
+	for i, r := range value {
+		if (r < '0' || r > '9') && r != '.' {
+			clean = value[:i]
+			break
+		}
+	}
+	chunks := strings.Split(clean, ".")
+	if len(chunks) == 0 {
+		return parts, false
+	}
+	for i := 0; i < len(parts) && i < len(chunks); i++ {
+		if chunks[i] == "" {
+			return parts, false
+		}
+		number, err := strconv.Atoi(chunks[i])
+		if err != nil {
+			return parts, false
+		}
+		parts[i] = number
+	}
+	return parts, true
 }
 
 func parseInstallOptions(args []string) (installers.Options, error) {

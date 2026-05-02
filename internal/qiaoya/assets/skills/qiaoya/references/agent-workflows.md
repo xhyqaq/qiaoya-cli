@@ -2,6 +2,16 @@
 
 这个文件把常见用户意图映射到 `qiaoya` 命令。Agent 应先调用 CLI，再组织答案。
 
+## 使用前检查版本
+
+每次开始处理敲鸭相关任务时，先运行：
+
+```bash
+qiaoya --json version
+```
+
+如果返回的 `updateAvailable` 为 `true`，先提示用户执行 `installCommand` 更新。不要在旧 runtime 上强行使用新命令。
+
 ## 用户问“敲鸭是什么？”
 
 运行：

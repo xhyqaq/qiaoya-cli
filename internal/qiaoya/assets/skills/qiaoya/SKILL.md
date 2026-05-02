@@ -28,6 +28,7 @@ curl -fsSL https://code.xhyovo.cn/install | sh
 Agent 调用 CLI 时优先使用 JSON：
 
 ```bash
+~/.qiaoya/bin/qiaoya --json version
 ~/.qiaoya/bin/qiaoya --json public overview
 ~/.qiaoya/bin/qiaoya --json public courses
 ~/.qiaoya/bin/qiaoya --json ai-news today
@@ -37,6 +38,7 @@ Agent 调用 CLI 时优先使用 JSON：
 
 ## 任务路由
 
+- 使用前检查版本：先运行 `qiaoya --json version`；如果 `updateAvailable` 为 `true`，先提示用户执行返回的 `installCommand` 更新
 - 介绍社区、定位、适合人群：`qiaoya --json public overview`
 - 查询课程：`qiaoya --json public courses`
 - 查询课程详情：`qiaoya --json public course --id <courseId>`

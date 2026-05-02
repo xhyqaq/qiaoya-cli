@@ -4,6 +4,14 @@
 
 ## 常用公开查询
 
+先检查版本：
+
+```bash
+~/.qiaoya/bin/qiaoya --json version
+```
+
+如果 `updateAvailable` 为 `true`，提示用户执行返回的 `installCommand` 更新。
+
 ```bash
 ~/.qiaoya/bin/qiaoya --json public overview
 ~/.qiaoya/bin/qiaoya --json public courses
