@@ -24,6 +24,32 @@ qiaoya --base-url <url> <command>
 - `--json`：输出 JSON，Agent 默认使用
 - `--base-url`：指定 API 地址，默认使用敲鸭线上 API
 
+## 通用前台 API
+
+```bash
+qiaoya --json api GET /api/app/chapters/latest
+qiaoya --json api GET '/api/app/comments?businessType=POST&businessId=<id>'
+qiaoya --json api POST /api/app/posts/queries --body '{"pageNum":1,"pageSize":10}'
+qiaoya --json api POST /api/user/comments --body '{"businessType":"POST","businessId":"<id>","content":"..."}'
+qiaoya --json api PUT /api/user/profile --body '{"name":"...","description":"..."}'
+qiaoya --json api GET /api/expressions/alias-map
+qiaoya --json api DELETE /api/user/comments/<commentId>
+```
+
+允许的前台路径：
+
+- `/api/public/**`
+- `/api/app/**`
+- `/api/user/**`
+- `/api/expressions/**`
+- `/api/likes/**`
+- `/api/favorites/**`
+- `/api/reactions/**`
+- `/api/testimonials/**`
+- `/api/interview-questions/**`
+
+禁止调用 `/api/admin/**`、账号密码登录类接口、OAuth token/callback、OSS/CDN 回调这类流程型端点。登录统一使用 `qiaoya auth login`。非 public 路径需要登录态；如果本地未登录，CLI 会直接启动浏览器授权登录。写操作会请求 `write` scope，旧版只读 token 不满足时会重新授权。
+
 ## 安装和诊断
 
 ```bash
@@ -67,6 +93,8 @@ qiaoya --json public about
 qiaoya --json public stats
 qiaoya --json public courses
 qiaoya --json public courses --page 1 --size 20
+qiaoya --json public course --id <courseId>
+qiaoya --json public chapters --course-id <courseId>
 qiaoya --json public plans
 qiaoya --json public app-plans
 qiaoya --json public services
@@ -78,6 +106,8 @@ qiaoya --json public update-logs
 
 - `overview` 适合回答“敲鸭是什么”“适合谁”“整体介绍”
 - `courses` 适合课程列表、课程推荐、学习路径
+- `course --id` 适合获取某门课程的公开详情，包含章节列表
+- `chapters --course-id` 适合只获取某门课程的章节标题、排序、阅读时长和创建时间
 - `services` 和 `plans` 适合会员、服务、套餐相关问题
 - `testimonials` 适合用户评价和案例
 - `update-logs` 当前需要登录态，调用前先检查 `auth status`

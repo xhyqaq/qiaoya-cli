@@ -32,18 +32,22 @@ Agent 调用 CLI 时优先使用 JSON：
 ~/.qiaoya/bin/qiaoya --json public courses
 ~/.qiaoya/bin/qiaoya --json ai-news today
 ~/.qiaoya/bin/qiaoya --json auth status
+~/.qiaoya/bin/qiaoya --json api GET /api/app/chapters/latest
 ```
 
 ## 任务路由
 
 - 介绍社区、定位、适合人群：`qiaoya --json public overview`
 - 查询课程：`qiaoya --json public courses`
+- 查询课程详情：`qiaoya --json public course --id <courseId>`
+- 查询课程章节列表：`qiaoya --json public chapters --course-id <courseId>`
 - 推荐课程：先查 `public courses`，再按用户目标总结
 - 查询服务、套餐：`qiaoya --json public services`、`qiaoya --json public plans`
 - 查询最近更新：先 `qiaoya --json auth status`，已登录后 `qiaoya --json public update-logs`
 - 查询 AI 日报：`qiaoya --json ai-news today`
 - 查询往期 AI 日报：`qiaoya --json ai-news history`
 - 查询指定日期日报：`qiaoya --json ai-news daily --date YYYY-MM-DD`
+- 调用任意前台 API：`qiaoya --json api METHOD /api/...`
 - 登录状态：`qiaoya --json auth status`
 - 浏览器授权登录：当用户请求的任务需要登录且 `auth status` 显示未登录时，由 Agent 直接执行 `qiaoya auth login`；用户只需在打开的浏览器页面完成登录和授权
 
@@ -52,6 +56,7 @@ Agent 调用 CLI 时优先使用 JSON：
 需要更详细信息时读取这些文件：
 
 - `references/cli-command-reference.md`：完整命令、参数和输出使用建议
+- `references/frontend-api-map.md`：前台 API 路径速查和典型 body 示例
 - `references/agent-workflows.md`：常见用户意图到 CLI 命令的工作流
 - `references/auth-and-permissions.md`：登录、token、权限和安全边界
 - `references/about.md`：社区定位和回答原则
@@ -62,9 +67,9 @@ Agent 调用 CLI 时优先使用 JSON：
 
 - 不要索要邮箱、密码、token、Cookie 或浏览器会话
 - 不要替用户输入账号密码；登录只能由 Agent 执行 `qiaoya auth login` 打开浏览器授权，用户在浏览器里完成确认
+- 使用通用 `api` 命令时只能调用前台白名单路径；不要绕过 CLI 去调用 `/api/admin`、账号密码登录、OAuth token/callback 或 OSS/CDN 回调接口
 - 不要把站外信息冒充成 CLI 或接口返回
-- 不要执行写入、删除、发布、评论等操作，除非用户明确要求且 CLI 提供确认或 dry-run 机制
-- 写操作出现之前，先检查 `qiaoya --json auth status`，并让用户确认最终内容
+- 写入、删除、发布、评论等操作必须来自用户明确要求；执行前先整理最终内容，并让用户确认
 
 ## 回答风格
 

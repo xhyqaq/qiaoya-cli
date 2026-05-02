@@ -7,10 +7,25 @@
 ```bash
 ~/.qiaoya/bin/qiaoya --json public overview
 ~/.qiaoya/bin/qiaoya --json public courses
+~/.qiaoya/bin/qiaoya --json public course --id <courseId>
+~/.qiaoya/bin/qiaoya --json public chapters --course-id <courseId>
 ~/.qiaoya/bin/qiaoya --json public services
 ~/.qiaoya/bin/qiaoya --json public plans
 ~/.qiaoya/bin/qiaoya --json ai-news today
 ```
+
+## 通用前台 API 调用
+
+所有前台暴露接口都可以通过 `api` 命令调用：
+
+```bash
+~/.qiaoya/bin/qiaoya --json api GET /api/app/chapters/latest
+~/.qiaoya/bin/qiaoya --json api POST /api/app/posts/queries --body '{"pageNum":1,"pageSize":10}'
+~/.qiaoya/bin/qiaoya --json api POST /api/user/comments --body '{"businessType":"POST","businessId":"...","content":"..."}'
+~/.qiaoya/bin/qiaoya --json api GET /api/expressions/alias-map
+```
+
+`api` 命令只允许前台白名单路径，禁止 `/api/admin`、账号密码登录、OAuth token/callback、OSS/CDN 回调等流程型端点。访问非 `/api/public/` 路径且本地未登录时，CLI 会直接打开浏览器授权登录，用户只需要在浏览器里确认。
 
 ## 需要登录态的查询
 

@@ -26,6 +26,14 @@ type globalOptions struct {
 	BaseURL string
 }
 
+type apiCommandOptions struct {
+	Method   string
+	Path     string
+	Body     string
+	BodyFile string
+	NoLogin  bool
+}
+
 func New(stdout, stderr io.Writer) App {
 	if stdout == nil {
 		stdout = io.Discard
@@ -68,6 +76,8 @@ func (a App) Run(args []string) int {
 		return a.runPublic(rest[1:], globals)
 	case "ai-news":
 		return a.runAINews(rest[1:], globals)
+	case "api":
+		return a.runAPI(rest[1:], globals)
 	default:
 		fmt.Fprintf(a.Stderr, "未知命令: %s\n\n", rest[0])
 		a.printHelp()
@@ -119,7 +129,10 @@ Usage:
   qiaoya uninstall [--agents auto|all|...]
   qiaoya --json public overview
   qiaoya --json public courses
+  qiaoya --json public chapters --course-id <id>
   qiaoya --json ai-news today
+  qiaoya --json api GET /api/app/chapters/latest
+  qiaoya --json api POST /api/app/posts/queries --body '{"pageNum":1,"pageSize":10}'
 
 Global options:
   --json                 输出 JSON，推荐 agent 使用
@@ -346,7 +359,7 @@ func normalizeAuthFile(path string) string {
 	return auth.DefaultStorePath(home)
 }
 
-func attachStoredAuth(client *api.Client) {
+func loadStoredAuthToken(baseURL string) (auth.Token, bool) {
 	storePath := normalizeAuthFile("")
 	token, err := auth.LoadToken(storePath)
 	if err != nil || token.Expired() {
@@ -356,7 +369,7 @@ func attachStoredAuth(client *api.Client) {
 			if refreshed, refreshErr := auth.Refresh(ctx, storePath); refreshErr == nil {
 				token = refreshed
 			} else {
-				return
+				return auth.Token{}, false
 			}
 		}
 	}
@@ -368,9 +381,17 @@ func attachStoredAuth(client *api.Client) {
 		}
 	}
 	if token.Expired() {
-		return
+		return auth.Token{}, false
 	}
-	if strings.TrimRight(token.BaseURL, "/") != strings.TrimRight(client.BaseURL, "/") {
+	if strings.TrimRight(token.BaseURL, "/") != strings.TrimRight(baseURL, "/") {
+		return auth.Token{}, false
+	}
+	return token, true
+}
+
+func attachStoredAuth(client *api.Client) {
+	token, ok := loadStoredAuthToken(client.BaseURL)
+	if !ok {
 		return
 	}
 	client.BearerToken = token.AccessToken
@@ -378,7 +399,7 @@ func attachStoredAuth(client *api.Client) {
 
 func (a App) runPublic(args []string, globals globalOptions) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(a.Stdout, "Usage: qiaoya --json public overview|about|stats|courses|plans|services|testimonials|update-logs")
+		fmt.Fprintln(a.Stdout, "Usage: qiaoya --json public overview|about|stats|courses|course|chapters|plans|services|testimonials|update-logs")
 		return 0
 	}
 
@@ -400,6 +421,24 @@ func (a App) runPublic(args []string, globals globalOptions) int {
 			return 2
 		}
 		data, err = client.ListPublicCourses(req)
+	case "course", "course-detail":
+		id, parseErr := parseStringFlag(args[1:], "id", "course id")
+		if parseErr != nil {
+			fmt.Fprintln(a.Stderr, parseErr)
+			return 2
+		}
+		data, err = client.GetPublicCourseDetail(id)
+	case "chapters", "course-chapters":
+		courseID, parseErr := parseStringFlag(args[1:], "course-id", "course id")
+		if parseErr != nil {
+			fmt.Fprintln(a.Stderr, parseErr)
+			return 2
+		}
+		var course any
+		course, err = client.GetPublicCourseDetail(courseID)
+		if err == nil {
+			data, err = publicCourseChapters(course)
+		}
 	case "plans":
 		data, err = client.GetPlans()
 	case "app-plans":
@@ -467,6 +506,48 @@ func (a App) runAINews(args []string, globals globalOptions) int {
 	return a.printData(data, globals.JSON)
 }
 
+func (a App) runAPI(args []string, globals globalOptions) int {
+	options, err := parseAPICommandOptions(args)
+	if err != nil {
+		fmt.Fprintln(a.Stderr, err)
+		return 2
+	}
+	if !isAllowedFrontendAPIPath(options.Path) {
+		fmt.Fprintf(a.Stderr, "不允许调用该 API path: %s\n", options.Path)
+		return 2
+	}
+
+	body, err := parseAPIBody(options.Body, options.BodyFile)
+	if err != nil {
+		fmt.Fprintln(a.Stderr, err)
+		return 2
+	}
+
+	client := api.NewClient(globals.BaseURL)
+	token, hasToken := loadStoredAuthToken(globals.BaseURL)
+	if hasToken {
+		client.BearerToken = token.AccessToken
+	}
+	loginRequired := !hasToken || (requiresWriteScope(options.Method, options.Path) && !hasScope(token.Scope, "write"))
+	if loginRequired && !options.NoLogin && requiresLoginAPIPath(options.Path) {
+		if err := a.loginForAPI(globals); err != nil {
+			fmt.Fprintln(a.Stderr, err)
+			return 1
+		}
+		client = api.NewClient(globals.BaseURL)
+		if refreshedToken, ok := loadStoredAuthToken(globals.BaseURL); ok {
+			client.BearerToken = refreshedToken.AccessToken
+		}
+	}
+
+	data, err := client.Call(options.Method, options.Path, body)
+	if err != nil {
+		fmt.Fprintln(a.Stderr, err)
+		return 1
+	}
+	return a.printData(data, globals.JSON)
+}
+
 func parsePageArgs(args []string, defaultPage, defaultSize int) (api.PageRequest, error) {
 	fs := flag.NewFlagSet("page", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -476,6 +557,203 @@ func parsePageArgs(args []string, defaultPage, defaultSize int) (api.PageRequest
 		return api.PageRequest{}, err
 	}
 	return api.PageRequest{Page: *page, Size: *size}, nil
+}
+
+func parseAPICommandOptions(args []string) (apiCommandOptions, error) {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		return apiCommandOptions{}, fmt.Errorf("Usage: qiaoya --json api METHOD /api/path [--body JSON|--body-file path] [--no-login]")
+	}
+	if len(args) < 2 {
+		return apiCommandOptions{}, fmt.Errorf("Usage: qiaoya --json api METHOD /api/path [--body JSON|--body-file path] [--no-login]")
+	}
+	options := apiCommandOptions{
+		Method: strings.ToUpper(strings.TrimSpace(args[0])),
+		Path:   strings.TrimSpace(args[1]),
+	}
+	fs := flag.NewFlagSet("api", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.StringVar(&options.Body, "body", "", "JSON request body")
+	fs.StringVar(&options.BodyFile, "body-file", "", "file containing JSON request body")
+	fs.BoolVar(&options.NoLogin, "no-login", false, "do not open browser login automatically")
+	if err := fs.Parse(args[2:]); err != nil {
+		return apiCommandOptions{}, err
+	}
+	switch options.Method {
+	case "GET", "POST", "PUT", "PATCH", "DELETE":
+	default:
+		return apiCommandOptions{}, fmt.Errorf("不支持的 HTTP method: %s", options.Method)
+	}
+	if options.Path == "" || !strings.HasPrefix(options.Path, "/api/") {
+		return apiCommandOptions{}, fmt.Errorf("API path 必须以 /api/ 开头")
+	}
+	if options.Body != "" && options.BodyFile != "" {
+		return apiCommandOptions{}, fmt.Errorf("--body 和 --body-file 不能同时使用")
+	}
+	return options, nil
+}
+
+func parseAPIBody(body, bodyFile string) (any, error) {
+	if strings.TrimSpace(bodyFile) != "" {
+		raw, err := os.ReadFile(bodyFile)
+		if err != nil {
+			return nil, err
+		}
+		body = string(raw)
+	}
+	if strings.TrimSpace(body) == "" {
+		return nil, nil
+	}
+	var decoded any
+	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
+		return nil, fmt.Errorf("解析 --body JSON 失败: %w", err)
+	}
+	return decoded, nil
+}
+
+func isAllowedFrontendAPIPath(path string) bool {
+	path = stripQuery(path)
+	if isBlockedFrontendAPIPath(path) {
+		return false
+	}
+	if path == "/api/user" || path == "/api/expressions" || path == "/api/testimonials" || path == "/api/interview-questions" {
+		return true
+	}
+	allowedPrefixes := []string{
+		"/api/public/",
+		"/api/app/",
+		"/api/user/",
+		"/api/expressions/",
+		"/api/likes/",
+		"/api/favorites/",
+		"/api/reactions/",
+		"/api/testimonials/",
+		"/api/interview-questions/",
+	}
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func isBlockedFrontendAPIPath(path string) bool {
+	if path == "/api/public/oss-callback" {
+		return true
+	}
+	blockedPrefixes := []string{
+		"/api/admin/",
+		"/api/auth/",
+		"/api/public/oauth2/",
+		"/api/public/oauth/github/",
+		"/api/public/cdn/",
+	}
+	for _, prefix := range blockedPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func requiresLoginAPIPath(path string) bool {
+	path = stripQuery(path)
+	if strings.HasPrefix(path, "/api/public/resource/") && strings.HasSuffix(path, "/access") {
+		return true
+	}
+	return !strings.HasPrefix(path, "/api/public/")
+}
+
+func stripQuery(path string) string {
+	if i := strings.IndexByte(path, '?'); i >= 0 {
+		return path[:i]
+	}
+	return path
+}
+
+func requiresWriteScope(method, path string) bool {
+	path = stripQuery(path)
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case "PUT", "PATCH", "DELETE":
+		return true
+	case "POST":
+		return !isReadOnlyPostPath(path)
+	default:
+		return false
+	}
+}
+
+func isReadOnlyPostPath(path string) bool {
+	if strings.HasPrefix(path, "/api/public/") {
+		return true
+	}
+	if strings.HasSuffix(path, "/queries") {
+		return true
+	}
+	switch path {
+	case "/api/likes/status/batch",
+		"/api/likes/count/batch",
+		"/api/favorites/status/batch",
+		"/api/app/follows/batch-check":
+		return true
+	default:
+		return false
+	}
+}
+
+func hasScope(scope, required string) bool {
+	required = strings.TrimSpace(required)
+	if required == "" {
+		return true
+	}
+	for _, item := range strings.Fields(scope) {
+		if item == required {
+			return true
+		}
+	}
+	return false
+}
+
+func (a App) loginForAPI(globals globalOptions) error {
+	_, err := auth.Login(context.Background(), auth.LoginOptions{
+		BaseURL:     globals.BaseURL,
+		ClientID:    auth.DefaultClientID,
+		Scope:       auth.DefaultScope,
+		StorePath:   normalizeAuthFile(""),
+		Timeout:     2 * time.Minute,
+		OpenBrowser: true,
+		Stdout:      a.Stderr,
+	})
+	return err
+}
+
+func parseStringFlag(args []string, name, label string) (string, error) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	value := fs.String(name, "", label)
+	if err := fs.Parse(args); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(*value) == "" {
+		return "", fmt.Errorf("缺少 --%s", name)
+	}
+	return strings.TrimSpace(*value), nil
+}
+
+func publicCourseChapters(course any) (any, error) {
+	obj, ok := course.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("课程详情格式异常")
+	}
+	chapters, ok := obj["chapters"]
+	if !ok {
+		return nil, fmt.Errorf("课程详情中没有 chapters 字段")
+	}
+	return map[string]any{
+		"courseId":   obj["id"],
+		"courseName": obj["title"],
+		"chapters":   chapters,
+	}, nil
 }
 
 func (a App) printResults(results []installers.Result, asJSON bool) int {

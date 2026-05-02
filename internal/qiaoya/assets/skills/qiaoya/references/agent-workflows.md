@@ -33,6 +33,22 @@ qiaoya --json public courses
 - 给出建议学习顺序
 - 如果用户目标不清楚，先给通用建议，再问一个澄清问题
 
+## 用户问某门课程最近更新了什么
+
+如果已知课程 ID，直接运行：
+
+```bash
+qiaoya --json public chapters --course-id <courseId>
+```
+
+如果只知道课程名，先查课程列表，找到最匹配课程 ID：
+
+```bash
+qiaoya --json public courses
+```
+
+然后再查章节列表。回答时按章节的创建时间或排序组织，不要说 CLI 未提供章节接口。
+
 ## 用户问“我适合学哪门？”
 
 先判断用户目标。如果信息不足，可以问一句：
@@ -139,12 +155,19 @@ qiaoya --json auth status
 
 ## 用户要发文章或评论
 
-当前 CLI 可能还没有发布/评论命令。Agent 应该：
+使用通用前台 API 命令。先整理内容，给用户确认最终文本，再提交。
 
-1. 检查 CLI 是否支持相关命令
-2. 如果不支持，明确说明当前 CLI 暂未开放
-3. 如果未来支持，必须先 dry-run 或生成预览
-4. 让用户确认最终内容
-5. 再执行写入
+评论示例：
+
+```bash
+qiaoya --json api POST /api/user/comments --body '{"businessType":"POST","businessId":"<postId>","content":"评论内容"}'
+```
+
+文章示例：
+
+```bash
+qiaoya --json api POST /api/user/posts --body '{"title":"标题","content":"正文","summary":"概要","categoryId":"<categoryId>","tags":["AI"]}'
+qiaoya --json api PATCH /api/user/posts/<postId>/status --body '{"status":"PUBLISHED"}'
+```
 
 禁止在没有用户确认时发布、评论、删除或修改内容。

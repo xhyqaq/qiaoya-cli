@@ -110,6 +110,14 @@ func (c *Client) ListPublicCourses(req PageRequest) (any, error) {
 	})
 }
 
+func (c *Client) GetPublicCourseDetail(courseID string) (any, error) {
+	courseID = strings.TrimSpace(courseID)
+	if courseID == "" {
+		return nil, fmt.Errorf("缺少 --id")
+	}
+	return c.get("/api/public/courses/" + courseID)
+}
+
 func (c *Client) GetPlans() (any, error) {
 	return c.get("/api/public/subscription-plans")
 }
@@ -145,6 +153,17 @@ func (c *Client) GetAINewsDaily(date string, req PageRequest) (any, error) {
 	}
 	req = normalizePage(req, 1, 10)
 	return c.get(fmt.Sprintf("/api/app/ai-news/daily?date=%s&pageNum=%d&pageSize=%d", date, req.Page, req.Size))
+}
+
+func (c *Client) Call(method, path string, body any) (any, error) {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	if method == "" {
+		return nil, fmt.Errorf("缺少 HTTP method")
+	}
+	if !strings.HasPrefix(path, "/") {
+		return nil, fmt.Errorf("API path 必须以 / 开头")
+	}
+	return c.do(method, path, body)
 }
 
 func normalizePage(req PageRequest, defaultPage, defaultSize int) PageRequest {

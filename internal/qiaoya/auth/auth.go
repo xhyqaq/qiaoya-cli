@@ -23,7 +23,7 @@ import (
 
 const (
 	DefaultClientID = "qiaoya-cli"
-	DefaultScope    = "openid profile email read"
+	DefaultScope    = "openid profile email read write"
 )
 
 type LoginOptions struct {

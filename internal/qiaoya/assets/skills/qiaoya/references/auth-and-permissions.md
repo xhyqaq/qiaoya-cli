@@ -62,8 +62,9 @@ qiaoya --json public update-logs
 
 - 用户明确要求
 - 已登录
-- 命令支持 dry-run 或预览
+- OAuth scope 包含 `write`
 - 用户确认最终内容
+- 使用 `qiaoya --json api METHOD /api/...` 调用前台白名单接口
 
 ## 安全禁止项
 

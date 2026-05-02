@@ -42,3 +42,32 @@ func TestClientRejectsBusinessError(t *testing.T) {
 		t.Fatalf("expected business error")
 	}
 }
+
+func TestClientGetPublicCourseDetail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/public/courses/20" {
+			http.Error(w, "missing", http.StatusNotFound)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code": 200,
+			"data": map[string]any{
+				"id":    "20",
+				"title": "AI 专栏",
+				"chapters": []any{
+					map[string]any{"id": "c1", "title": "第一章"},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	data, err := NewClient(server.URL).GetPublicCourseDetail("20")
+	if err != nil {
+		t.Fatalf("GetPublicCourseDetail() error = %v", err)
+	}
+	obj, ok := data.(map[string]any)
+	if !ok || obj["title"] != "AI 专栏" {
+		t.Fatalf("unexpected detail: %#v", data)
+	}
+}

@@ -17,3 +17,5 @@ Prefer the local runtime:
 ```
 
 Do not ask for passwords, tokens, or cookies. If a requested task needs authenticated data and `qiaoya --json auth status` shows the user is not logged in, run `qiaoya auth login` yourself and let the user complete authorization in the browser. Do not ask the user to copy the command. Do not perform write/delete/publish/comment/chat actions unless the user explicitly asks and the runtime provides a confirmation flow.
+
+For any frontend API not covered by a named command, use `~/.qiaoya/bin/qiaoya --json api METHOD /api/... --body '{...}'`. The API bridge only allows frontend paths and must not be used for `/api/admin`, password login, OAuth token/callback, or OSS/CDN callback endpoints.
