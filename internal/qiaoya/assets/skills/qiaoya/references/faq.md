@@ -4,8 +4,16 @@
 
 不需要。普通用户通过一行安装命令下载单文件 `qiaoya` runtime，并安装对应 AI 工具的 skill/rules。
 
+macOS / Linux：
+
 ```bash
 curl -fsSL https://code.xhyovo.cn/install | sh
+```
+
+Windows PowerShell：
+
+```powershell
+irm https://code.xhyovo.cn/install.ps1 | iex
 ```
 
 ## 为什么不用 npx 或 pip？

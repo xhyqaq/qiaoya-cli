@@ -10,7 +10,7 @@
 ~/.qiaoya/bin/qiaoya --json version
 ```
 
-如果 `updateAvailable` 为 `true`，提示用户执行返回的 `installCommand` 更新。
+如果 `updateAvailable` 为 `true`，立即停止当前查询，不要继续调用其他 `qiaoya` 命令；回复当前版本、最新版本和返回的 `installCommand`，让用户先更新。只有用户明确要求继续使用旧版本时，才继续后续查询。
 
 ```bash
 ~/.qiaoya/bin/qiaoya --json public overview
@@ -48,7 +48,13 @@
 ## 安装或修复
 
 ```bash
+# macOS / Linux
 curl -fsSL https://code.xhyovo.cn/install | sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://code.xhyovo.cn/install.ps1 | iex
 ```
 
 安装完成后，必要时提醒用户重启 Codex / Claude Code，或在 Cursor / Windsurf 项目里重新加载规则。

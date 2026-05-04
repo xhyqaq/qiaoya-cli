@@ -74,7 +74,12 @@ jobs:
             "commit": "${COMMIT}",
             "date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "downloadBaseUrl": "https://code.xhyovo.cn/downloads/qiaoya/latest",
-            "installCommand": "curl -fsSL https://code.xhyovo.cn/install | sh"
+            "installCommand": "curl -fsSL https://code.xhyovo.cn/install | sh",
+            "installCommands": {
+              "darwin": "curl -fsSL https://code.xhyovo.cn/install | sh",
+              "linux": "curl -fsSL https://code.xhyovo.cn/install | sh",
+              "windows": "irm https://code.xhyovo.cn/install.ps1 | iex"
+            }
           }
           EOF
 
@@ -157,6 +162,7 @@ jobs:
           port="${DEPLOY_PORT:-22}"
           remote_root="${DEPLOY_ROOT:-/www/wwwroot/code.xhyovo.cn/downloads/qiaoya}"
           cp scripts/install.sh flattened/install.sh
+          cp scripts/install.ps1 flattened/install.ps1
           tar -C flattened -czf "qiaoya-release-${VERSION}.tar.gz" .
           ssh -i ~/.ssh/qiaoya_deploy_key -p "$port" "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$remote_root/incoming/$VERSION'"
           scp -O -i ~/.ssh/qiaoya_deploy_key -P "$port" "qiaoya-release-${VERSION}.tar.gz" "$DEPLOY_USER@$DEPLOY_HOST:$remote_root/incoming/$VERSION/release.tar.gz"
@@ -173,13 +179,14 @@ jobs:
           rm -f release.tar.gz
           sha256sum -c checksums.txt
           mkdir -p "$REMOTE_ROOT/releases/$VERSION" "$REMOTE_ROOT/latest"
-          cp -f qiaoya-* checksums.txt version.json install.sh "$REMOTE_ROOT/releases/$VERSION/"
+          cp -f qiaoya-* checksums.txt version.json install.sh install.ps1 "$REMOTE_ROOT/releases/$VERSION/"
           cp -f qiaoya-* checksums.txt version.json "$REMOTE_ROOT/latest/"
           cp -f install.sh "$REMOTE_ROOT/install.sh"
+          cp -f install.ps1 "$REMOTE_ROOT/install.ps1"
           chmod 755 "$REMOTE_ROOT/releases/$VERSION"/qiaoya-* "$REMOTE_ROOT/latest"/qiaoya-* "$REMOTE_ROOT/install.sh"
-          chmod 644 "$REMOTE_ROOT/releases/$VERSION"/checksums.txt "$REMOTE_ROOT/releases/$VERSION"/version.json "$REMOTE_ROOT/latest"/checksums.txt "$REMOTE_ROOT/latest"/version.json "$REMOTE_ROOT/releases/$VERSION"/install.sh
+          chmod 644 "$REMOTE_ROOT/install.ps1" "$REMOTE_ROOT/releases/$VERSION"/checksums.txt "$REMOTE_ROOT/releases/$VERSION"/version.json "$REMOTE_ROOT/latest"/checksums.txt "$REMOTE_ROOT/latest"/version.json "$REMOTE_ROOT/releases/$VERSION"/install.sh "$REMOTE_ROOT/releases/$VERSION"/install.ps1
           if id www >/dev/null 2>&1; then
-            chown -R www:www "$REMOTE_ROOT/releases/$VERSION" "$REMOTE_ROOT/latest" "$REMOTE_ROOT/install.sh"
+            chown -R www:www "$REMOTE_ROOT/releases/$VERSION" "$REMOTE_ROOT/latest" "$REMOTE_ROOT/install.sh" "$REMOTE_ROOT/install.ps1"
           fi
           rm -rf "$REMOTE_ROOT/incoming/$VERSION"
           REMOTE
@@ -188,5 +195,6 @@ jobs:
         if: steps.deploy-check.outputs.enabled == 'true'
         run: |
           curl -fsSL https://code.xhyovo.cn/install | head -n 5
+          curl -fsSL https://code.xhyovo.cn/install.ps1 | head -n 5
           curl -fsI https://code.xhyovo.cn/downloads/qiaoya/latest/checksums.txt
           curl -fsSL https://code.xhyovo.cn/downloads/qiaoya/latest/version.json

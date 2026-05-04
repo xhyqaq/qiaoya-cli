@@ -19,10 +19,16 @@ description: Use when the user asks about 敲鸭社区, qiaoya community, public
 ~/.qiaoya/bin/qiaoya --help
 ```
 
-如果 runtime 不存在，提示用户重新安装：
+如果 runtime 不存在，按用户系统提示重新安装：
 
 ```bash
+# macOS / Linux
 curl -fsSL https://code.xhyovo.cn/install | sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://code.xhyovo.cn/install.ps1 | iex
 ```
 
 Agent 调用 CLI 时优先使用 JSON：
@@ -36,9 +42,22 @@ Agent 调用 CLI 时优先使用 JSON：
 ~/.qiaoya/bin/qiaoya --json api GET /api/app/chapters/latest
 ```
 
+## 版本门禁
+
+每次处理敲鸭相关任务时，必须先运行：
+
+```bash
+~/.qiaoya/bin/qiaoya --json version
+```
+
+如果返回的 `updateAvailable` 为 `true`：
+
+- 立即停止当前查询流程，不要继续调用课程、章节、AI 日报、更新日志或任意 `api` 命令
+- 回复用户当前版本、最新版本和返回的 `installCommand`
+- 让用户先执行更新命令；只有用户明确要求“继续使用旧版本”时，才可以继续后续查询
+
 ## 任务路由
 
-- 使用前检查版本：先运行 `qiaoya --json version`；如果 `updateAvailable` 为 `true`，先提示用户执行返回的 `installCommand` 更新
 - 介绍社区、定位、适合人群：`qiaoya --json public overview`
 - 查询课程：`qiaoya --json public courses`
 - 查询课程详情：`qiaoya --json public course --id <courseId>`

@@ -8,10 +8,16 @@
 ~/.qiaoya/bin/qiaoya --help
 ```
 
-如果不存在，提示用户重新安装：
+如果不存在，按用户系统提示重新安装：
 
 ```bash
+# macOS / Linux
 curl -fsSL https://code.xhyovo.cn/install | sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://code.xhyovo.cn/install.ps1 | iex
 ```
 
 ## Agent 没有识别敲鸭能力

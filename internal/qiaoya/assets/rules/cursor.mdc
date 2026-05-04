@@ -15,7 +15,7 @@ Prefer the local runtime:
 ~/.qiaoya/bin/qiaoya auth status
 ```
 
-Before using qiaoya for a task, run `~/.qiaoya/bin/qiaoya --json version`. If `updateAvailable` is true, tell the user to run the returned `installCommand` before continuing.
+Before using qiaoya for a task, run `~/.qiaoya/bin/qiaoya --json version`. If `updateAvailable` is true, stop the current task immediately: do not call courses, chapters, AI news, update logs, or any `api` command. Tell the user the current version, latest version, and returned `installCommand`. Continue only if the user explicitly asks to keep using the old runtime.
 
 Do not ask for passwords, tokens, or cookies. If a requested task needs authenticated data and `qiaoya --json auth status` shows the user is not logged in, run `qiaoya auth login` yourself and let the user complete authorization in the browser. Do not ask the user to copy the command. Do not perform write/delete/publish/comment/chat actions unless the user explicitly asks and the runtime provides a confirmation flow.
 

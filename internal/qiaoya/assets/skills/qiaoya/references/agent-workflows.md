@@ -10,7 +10,11 @@
 qiaoya --json version
 ```
 
-如果返回的 `updateAvailable` 为 `true`，先提示用户执行 `installCommand` 更新。不要在旧 runtime 上强行使用新命令。
+这一步是门禁，不是普通提醒。如果返回的 `updateAvailable` 为 `true`：
+
+- 立即停止当前任务，不要继续调用课程、章节、AI 日报、更新日志或任意 `api` 命令。
+- 回复用户当前版本、最新版本和 `installCommand`。
+- 等用户更新后重新开始；除非用户明确要求继续使用旧版本。
 
 ## 用户问“敲鸭是什么？”
 

@@ -39,7 +39,7 @@ qiaoya --json version
 - `updateAvailable`：是否需要更新
 - `installCommand`：更新命令
 
-如果 `updateAvailable` 为 `true`，先提示用户执行 `installCommand` 更新。不要在旧 runtime 上强行使用新命令。
+如果 `updateAvailable` 为 `true`，这是门禁而不是普通提醒：立即停止当前任务，不要继续调用课程、章节、AI 日报、更新日志或任意 `api` 命令。回复用户当前版本、最新版本和 `installCommand`，让用户先更新。只有用户明确要求继续使用旧版本时，才继续后续查询。
 
 ## 通用前台 API
 
@@ -82,7 +82,7 @@ qiaoya update
 
 使用建议：
 
-- 用户只想安装：提示一行命令 `curl -fsSL https://code.xhyovo.cn/install | sh`
+- 用户只想安装：macOS / Linux 提示 `curl -fsSL https://code.xhyovo.cn/install | sh`；Windows PowerShell 提示 `irm https://code.xhyovo.cn/install.ps1 | iex`
 - 用户说 Agent 没识别敲鸭：运行 `qiaoya --json doctor`
 - 用户使用 Cursor 或 Windsurf：需要在项目根目录安装或传 `--project-dir`
 

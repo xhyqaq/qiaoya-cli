@@ -5,7 +5,13 @@
 目标体验：
 
 ```bash
+# macOS / Linux
 curl -fsSL https://code.xhyovo.cn/install | sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://code.xhyovo.cn/install.ps1 | iex
 ```
 
 用户执行一行命令后，安装器会把敲鸭社区能力写入常用 AI agent 的 skill/rules 目录。之后用户直接在 Codex、Claude Code、Cursor、Windsurf、OpenClaw 里对话即可了解社区。

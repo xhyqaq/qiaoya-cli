@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -37,23 +38,25 @@ type apiCommandOptions struct {
 }
 
 type versionReport struct {
-	CurrentVersion  string `json:"currentVersion"`
-	CurrentCommit   string `json:"currentCommit"`
-	CurrentDate     string `json:"currentDate"`
-	LatestVersion   string `json:"latestVersion,omitempty"`
-	LatestCommit    string `json:"latestCommit,omitempty"`
-	LatestDate      string `json:"latestDate,omitempty"`
-	UpdateAvailable bool   `json:"updateAvailable"`
-	InstallCommand  string `json:"installCommand"`
-	CheckError      string `json:"checkError,omitempty"`
+	CurrentVersion  string            `json:"currentVersion"`
+	CurrentCommit   string            `json:"currentCommit"`
+	CurrentDate     string            `json:"currentDate"`
+	LatestVersion   string            `json:"latestVersion,omitempty"`
+	LatestCommit    string            `json:"latestCommit,omitempty"`
+	LatestDate      string            `json:"latestDate,omitempty"`
+	UpdateAvailable bool              `json:"updateAvailable"`
+	InstallCommand  string            `json:"installCommand"`
+	InstallCommands map[string]string `json:"installCommands,omitempty"`
+	CheckError      string            `json:"checkError,omitempty"`
 }
 
 type latestVersionManifest struct {
-	Version         string `json:"version"`
-	Commit          string `json:"commit,omitempty"`
-	Date            string `json:"date,omitempty"`
-	DownloadBaseURL string `json:"downloadBaseUrl,omitempty"`
-	InstallCommand  string `json:"installCommand,omitempty"`
+	Version         string            `json:"version"`
+	Commit          string            `json:"commit,omitempty"`
+	Date            string            `json:"date,omitempty"`
+	DownloadBaseURL string            `json:"downloadBaseUrl,omitempty"`
+	InstallCommand  string            `json:"installCommand,omitempty"`
+	InstallCommands map[string]string `json:"installCommands,omitempty"`
 }
 
 func New(stdout, stderr io.Writer) App {
@@ -357,11 +360,13 @@ func (a App) runUpdate(_ []string, globals globalOptions) int {
 }
 
 func buildVersionReport(globals globalOptions) versionReport {
+	commands := defaultInstallCommands()
 	report := versionReport{
-		CurrentVersion: metadata.Version,
-		CurrentCommit:  metadata.Commit,
-		CurrentDate:    metadata.Date,
-		InstallCommand: "curl -fsSL " + metadata.DefaultInstallURL + " | sh",
+		CurrentVersion:  metadata.Version,
+		CurrentCommit:   metadata.Commit,
+		CurrentDate:     metadata.Date,
+		InstallCommand:  installCommandForGOOS(commands, runtime.GOOS),
+		InstallCommands: commands,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -374,10 +379,55 @@ func buildVersionReport(globals globalOptions) versionReport {
 	report.LatestCommit = latest.Commit
 	report.LatestDate = latest.Date
 	if strings.TrimSpace(latest.InstallCommand) != "" {
-		report.InstallCommand = strings.TrimSpace(latest.InstallCommand)
+		legacy := strings.TrimSpace(latest.InstallCommand)
+		commands["darwin"] = legacy
+		commands["linux"] = legacy
 	}
+	mergeInstallCommands(commands, latest.InstallCommands)
+	report.InstallCommands = commands
+	report.InstallCommand = installCommandForGOOS(commands, runtime.GOOS)
 	report.UpdateAvailable = compareVersions(latest.Version, metadata.Version) > 0
 	return report
+}
+
+func defaultInstallCommands() map[string]string {
+	unixCommand := "curl -fsSL " + metadata.DefaultInstallURL + " | sh"
+	return map[string]string{
+		"darwin":  unixCommand,
+		"linux":   unixCommand,
+		"windows": "irm " + metadata.DefaultInstallURL + ".ps1 | iex",
+	}
+}
+
+func mergeInstallCommands(target map[string]string, incoming map[string]string) {
+	for key, value := range incoming {
+		command := strings.TrimSpace(value)
+		if command == "" {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "macoslinux", "macos_linux", "unix":
+			target["darwin"] = command
+			target["linux"] = command
+		case "darwin", "macos", "mac":
+			target["darwin"] = command
+		case "linux":
+			target["linux"] = command
+		case "windows", "win":
+			target["windows"] = command
+		}
+	}
+}
+
+func installCommandForGOOS(commands map[string]string, goos string) string {
+	key := strings.ToLower(strings.TrimSpace(goos))
+	if command := strings.TrimSpace(commands[key]); command != "" {
+		return command
+	}
+	if command := strings.TrimSpace(commands["linux"]); command != "" {
+		return command
+	}
+	return "curl -fsSL " + metadata.DefaultInstallURL + " | sh"
 }
 
 func fetchLatestVersion(ctx context.Context, baseURL string) (latestVersionManifest, error) {

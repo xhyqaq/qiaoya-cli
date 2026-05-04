@@ -75,6 +75,50 @@ func TestVersionJSONReportsUpdateAvailability(t *testing.T) {
 	}
 }
 
+func TestVersionJSONUsesPlatformInstallCommands(t *testing.T) {
+	restoreVersion := setTestVersion("v1.0.0")
+	defer restoreVersion()
+
+	server := versionManifestServer(t, map[string]any{
+		"version": "v1.2.0",
+		"installCommands": map[string]string{
+			"darwin":  "darwin install",
+			"linux":   "linux install",
+			"windows": "windows install",
+		},
+	})
+	defer server.Close()
+
+	var out bytes.Buffer
+	code := New(&out, &bytes.Buffer{}).Run([]string{"--json", "--base-url", server.URL, "version"})
+	if code != 0 {
+		t.Fatalf("version code = %d, output:\n%s", code, out.String())
+	}
+	var report versionReport
+	if err := json.Unmarshal(out.Bytes(), &report); err != nil {
+		t.Fatalf("decode version report: %v\n%s", err, out.String())
+	}
+	if report.InstallCommands["windows"] != "windows install" || report.InstallCommands["linux"] != "linux install" {
+		t.Fatalf("unexpected install commands: %#v", report.InstallCommands)
+	}
+	if installCommandForGOOS(report.InstallCommands, "windows") != "windows install" {
+		t.Fatalf("windows command was not selected: %#v", report.InstallCommands)
+	}
+}
+
+func TestInstallCommandDefaultsByGOOS(t *testing.T) {
+	commands := defaultInstallCommands()
+	if !strings.Contains(installCommandForGOOS(commands, "windows"), "install.ps1") {
+		t.Fatalf("windows should use PowerShell installer: %#v", commands)
+	}
+	if !strings.Contains(installCommandForGOOS(commands, "darwin"), "curl -fsSL") {
+		t.Fatalf("darwin should use shell installer: %#v", commands)
+	}
+	if !strings.Contains(installCommandForGOOS(commands, "linux"), "curl -fsSL") {
+		t.Fatalf("linux should use shell installer: %#v", commands)
+	}
+}
+
 func TestCompareVersions(t *testing.T) {
 	if compareVersions("v1.10.0", "v1.9.9") <= 0 {
 		t.Fatal("expected v1.10.0 > v1.9.9")
