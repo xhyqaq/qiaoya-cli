@@ -59,6 +59,52 @@ qiaoya --json public courses
 
 然后再查章节列表。回答时按章节的创建时间或排序组织，不要说 CLI 未提供章节接口。
 
+## 用户问某个视频章节讲了什么
+
+先确认用户已登录：
+
+```bash
+qiaoya --json auth status
+```
+
+如果未登录，直接运行：
+
+```bash
+qiaoya auth login
+```
+
+然后读取章节详情和文字稿：
+
+```bash
+qiaoya --json api GET /api/app/chapters/<chapterId>
+qiaoya --json api GET /api/app/chapters/<chapterId>/transcript
+```
+
+回答规则：
+
+- `SUCCEEDED`：优先用 `summary` 和 `keyPoints` 回答。
+- 用户需要学习笔记、时间线或细节时，再使用 `segments`。
+- 用户问“视频里什么时候讲到某点”时，引用 `segments[].startMs` 对应的时间点。
+- `NOT_GENERATED`：说明当前章节还没有生成文字稿。
+- `PENDING`、`SUBMITTED`、`RUNNING`：说明文字稿正在生成中。
+- `FAILED`、`CANCELLED`：说明文字稿暂不可用。
+- Agent 不触发后台转写、重试或重新生成。
+
+## 用户要把视频章节整理成学习笔记
+
+读取文字稿：
+
+```bash
+qiaoya --json api GET /api/app/chapters/<chapterId>/transcript
+```
+
+组织输出：
+
+- 先给 1 段总览。
+- 再列知识点。
+- 最后按时间轴分段整理学习笔记。
+- 不要把完整文字稿原样倾倒给用户，除非用户明确要求。
+
 ## 用户问“我适合学哪门？”
 
 先判断用户目标。如果信息不足，可以问一句：

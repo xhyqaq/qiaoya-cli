@@ -43,6 +43,7 @@ Agent 调用 CLI 时优先使用 JSON：
 - 查询课程：`qiaoya --json public courses`
 - 查询课程详情：`qiaoya --json public course --id <courseId>`
 - 查询课程章节列表：`qiaoya --json public chapters --course-id <courseId>`
+- 查询视频章节文字稿：已登录后 `qiaoya --json api GET /api/app/chapters/<chapterId>/transcript`
 - 推荐课程：先查 `public courses`，再按用户目标总结
 - 查询服务、套餐：`qiaoya --json public services`、`qiaoya --json public plans`
 - 查询最近更新：先 `qiaoya --json auth status`，已登录后 `qiaoya --json public update-logs`

@@ -36,10 +36,13 @@ qiaoya --json api POST /api/app/courses/queries --body '{"pageNum":1,"pageSize":
 qiaoya --json api GET /api/app/courses/<courseId>
 qiaoya --json api GET /api/app/chapters/latest
 qiaoya --json api GET /api/app/chapters/<chapterId>
+qiaoya --json api GET /api/app/chapters/<chapterId>/transcript
 qiaoya --json api POST /api/user/learning/progress/report --body '{"courseId":"<courseId>","chapterId":"<chapterId>","progress":100}'
 qiaoya --json api GET /api/user/learning/progress/<courseId>
 qiaoya --json api GET '/api/user/learning/records?pageNum=1&pageSize=10'
 ```
+
+章节文字稿接口需要登录和课程访问权限。Agent 只读取已生成结果，不触发转写任务。返回 `NOT_GENERATED`、`PENDING`、`SUBMITTED`、`RUNNING` 时，说明文字稿暂时不可用或正在生成；返回 `SUCCEEDED` 时优先使用 `summary` 和 `keyPoints`，需要细节再读取 `segments` 或完整 `text`。
 
 ## 文章、分类、评论
 
